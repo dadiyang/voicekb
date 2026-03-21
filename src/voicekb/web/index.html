@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>VoiceKB</title>
+<style>
+/* ── Reset & Variables ─────────────────────────────────────────────── */
+:root {
+  --primary: #4F46E5;
+  --primary-light: #EEF2FF;
+  --primary-dark: #3730A3;
+  --success: #10B981;
+  --warning: #F59E0B;
+  --danger: #EF4444;
+  --text-primary: #1D2129;
+  --text-secondary: #4E5969;
+  --text-tertiary: #86909C;
+  --bg-page: #F7F8FA;
+  --bg-card: #FFFFFF;
+  --border: #E5E6EB;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background: var(--bg-page); color: var(--text-primary);
+  line-height: 1.5; overflow-x: hidden;
+  padding-bottom: calc(60px + var(--safe-bottom));
+}
+a { color: var(--primary); text-decoration: none; }
+
+/* ── Utilities ─────────────────────────────────────────────────────── */
+.hidden { display: none !important; }
+.container { padding: 0 16px; }
+
+/* ── Top Nav ───────────────────────────────────────────────────────── */
+.top-nav {
+  position: sticky; top: 0; z-index: 100;
+  background: var(--bg-card); border-bottom: 1px solid var(--border);
+  padding: 12px 16px; display: flex; align-items: center; justify-content: space-between;
+}
+.top-nav h1 { font-size: 18px; font-weight: 700; }
+.top-nav h1 span { color: var(--primary); }
+
+/* ── Bottom Tab Bar ────────────────────────────────────────────────── */
+.tab-bar {
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
+  background: var(--bg-card); border-top: 1px solid var(--border);
+  display: flex; padding: 6px 0 calc(6px + var(--safe-bottom));
+}
+.tab-item {
+  flex: 1; display: flex; flex-direction: column; align-items: center;
+  padding: 4px 0; cursor: pointer; border: none; background: none;
+  font-size: 10px; color: var(--text-tertiary); transition: color 0.2s;
+}
+.tab-item.active { color: var(--primary); }
+.tab-item svg { width: 24px; height: 24px; margin-bottom: 2px; }
+
+/* ── View Container ────────────────────────────────────────────────── */
+.view { display: none; padding: 12px 0; min-height: calc(100vh - 120px); }
+.view.active { display: block; }
+
+/* ── Cards ─────────────────────────────────────────────────────────── */
+.card {
+  background: var(--bg-card); border-radius: var(--radius-md);
+  padding: 16px; margin: 0 16px 12px; box-shadow: var(--shadow-sm);
+}
+.card-title { font-size: 15px; font-weight: 600; margin-bottom: 8px; }
+.card-meta { font-size: 12px; color: var(--text-tertiary); }
+
+/* ── Recording Card ────────────────────────────────────────────────── */
+.rec-card { cursor: pointer; transition: transform 0.15s, box-shadow 0.15s; }
+.rec-card:active { transform: scale(0.98); }
+.rec-header { display: flex; align-items: center; gap: 12px; }
+.rec-icon {
+  width: 44px; height: 44px; border-radius: var(--radius-sm);
+  background: var(--primary-light); display: flex; align-items: center;
+  justify-content: center; flex-shrink: 0;
+}
+.rec-icon svg { width: 22px; height: 22px; color: var(--primary); }
+.rec-info { flex: 1; min-width: 0; }
+.rec-name { font-size: 15px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rec-meta { font-size: 12px; color: var(--text-tertiary); margin-top: 2px; }
+.rec-speakers { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.speaker-tag {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 10px; border-radius: 12px; font-size: 12px;
+  background: var(--primary-light); color: var(--primary);
+  cursor: pointer; border: none;
+}
+.speaker-tag:nth-child(2) { background: #FEF3C7; color: #D97706; }
+.speaker-tag:nth-child(3) { background: #D1FAE5; color: #059669; }
+.speaker-tag:nth-child(4) { background: #FCE7F3; color: #DB2777; }
+.rec-status {
+  display: inline-block; padding: 2px 8px; border-radius: 10px;
+  font-size: 11px; font-weight: 500;
+}
+.rec-status.completed { background: #D1FAE5; color: #059669; }
+.rec-status.processing { background: #FEF3C7; color: #D97706; }
+.rec-status.failed { background: #FEE2E2; color: #DC2626; }
+
+/* ── Empty State ───────────────────────────────────────────────────── */
+.empty-state {
+  text-align: center; padding: 60px 32px;
+}
+.empty-state svg { width: 120px; height: 120px; color: var(--text-tertiary); opacity: 0.3; margin-bottom: 20px; }
+.empty-state h3 { font-size: 18px; color: var(--text-secondary); margin-bottom: 8px; }
+.empty-state p { font-size: 14px; color: var(--text-tertiary); margin-bottom: 24px; }
+
+/* ── Buttons ───────────────────────────────────────────────────────── */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 10px 24px; border-radius: var(--radius-lg); font-size: 14px;
+  font-weight: 500; border: none; cursor: pointer; transition: all 0.15s;
+}
+.btn-primary { background: var(--primary); color: #fff; }
+.btn-primary:active { background: var(--primary-dark); }
+.btn-outline { background: transparent; color: var(--primary); border: 1.5px solid var(--primary); }
+.btn-sm { padding: 6px 14px; font-size: 12px; border-radius: 14px; }
+.btn-block { width: 100%; }
+.btn-fab {
+  position: fixed; right: 20px; bottom: calc(76px + var(--safe-bottom));
+  width: 56px; height: 56px; border-radius: 50%; z-index: 90;
+  box-shadow: var(--shadow-md); padding: 0;
+}
+.btn-fab svg { width: 24px; height: 24px; }
+
+/* ── Upload ────────────────────────────────────────────────────────── */
+.upload-zone {
+  border: 2px dashed var(--border); border-radius: var(--radius-md);
+  padding: 40px 20px; text-align: center; margin: 16px;
+  transition: border-color 0.2s, background 0.2s;
+}
+.upload-zone.dragover { border-color: var(--primary); background: var(--primary-light); }
+.upload-zone svg { width: 48px; height: 48px; color: var(--primary); margin-bottom: 12px; }
+.upload-zone p { font-size: 14px; color: var(--text-secondary); }
+#fileInput { display: none; }
+
+/* ── Progress ──────────────────────────────────────────────────────── */
+.progress-container { margin: 16px; }
+.progress-bar-bg {
+  width: 100%; height: 8px; background: #E5E7EB; border-radius: 4px; overflow: hidden;
+}
+.progress-bar-fill {
+  height: 100%; background: linear-gradient(90deg, var(--primary), #818CF8);
+  border-radius: 4px; transition: width 0.3s ease;
+}
+.progress-text { font-size: 13px; color: var(--text-secondary); margin-top: 8px; text-align: center; }
+
+/* ── Detail View ───────────────────────────────────────────────────── */
+.detail-header { padding: 16px; }
+.detail-back { display: flex; align-items: center; gap: 4px; font-size: 14px; color: var(--primary); cursor: pointer; margin-bottom: 12px; }
+.detail-title { font-size: 20px; font-weight: 700; margin-bottom: 8px; }
+.detail-meta { font-size: 13px; color: var(--text-tertiary); }
+
+.summary-card {
+  background: linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%);
+  border-radius: var(--radius-md); padding: 16px; margin: 0 16px 12px;
+}
+.summary-card h4 { font-size: 14px; font-weight: 600; color: var(--primary-dark); margin-bottom: 8px; }
+.summary-card .summary-text { font-size: 13px; color: var(--text-secondary); line-height: 1.7; white-space: pre-wrap; }
+
+.transcript {
+  padding: 0 16px;
+}
+.transcript-item {
+  display: flex; gap: 10px; margin-bottom: 16px;
+}
+.transcript-avatar {
+  width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 600; color: #fff;
+}
+.transcript-bubble { flex: 1; }
+.transcript-speaker {
+  font-size: 12px; font-weight: 600; margin-bottom: 2px;
+  display: flex; align-items: center; gap: 6px;
+}
+.transcript-speaker .ts { font-weight: 400; color: var(--text-tertiary); font-size: 11px; }
+.transcript-text { font-size: 14px; color: var(--text-primary); line-height: 1.6; }
+
+/* Speaker colors */
+.spk-0 { background: var(--primary); }
+.spk-1 { background: #D97706; }
+.spk-2 { background: #059669; }
+.spk-3 { background: #DB2777; }
+.spk-4 { background: #7C3AED; }
+
+/* ── Search ─────────────────────────────────────────────────────────── */
+.search-bar {
+  display: flex; gap: 8px; padding: 0 16px; margin-bottom: 12px;
+}
+.search-input {
+  flex: 1; padding: 10px 14px; border: 1.5px solid var(--border);
+  border-radius: var(--radius-md); font-size: 15px; outline: none;
+  transition: border-color 0.2s; background: var(--bg-card);
+}
+.search-input:focus { border-color: var(--primary); }
+.search-result-item {
+  padding: 12px 16px; border-bottom: 1px solid var(--border); cursor: pointer;
+}
+.search-result-item:active { background: var(--primary-light); }
+.search-highlight { background: #FEF08A; padding: 0 2px; border-radius: 2px; }
+
+/* ── Chat ──────────────────────────────────────────────────────────── */
+.chat-messages { padding: 16px; min-height: calc(100vh - 240px); }
+.chat-msg { margin-bottom: 16px; }
+.chat-msg.user { text-align: right; }
+.chat-msg .bubble {
+  display: inline-block; max-width: 85%; padding: 10px 14px;
+  border-radius: 16px; font-size: 14px; line-height: 1.6; text-align: left;
+}
+.chat-msg.user .bubble { background: var(--primary); color: #fff; border-bottom-right-radius: 4px; }
+.chat-msg.ai .bubble { background: var(--bg-card); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+.chat-msg.ai .bubble .source-link { font-size: 12px; color: var(--primary); margin-top: 6px; display: block; }
+.chat-input-bar {
+  position: fixed; bottom: calc(60px + var(--safe-bottom));
+  left: 0; right: 0; padding: 8px 16px;
+  background: var(--bg-card); border-top: 1px solid var(--border);
+  display: flex; gap: 8px;
+}
+.chat-input {
+  flex: 1; padding: 10px 14px; border: 1.5px solid var(--border);
+  border-radius: var(--radius-lg); font-size: 15px; outline: none;
+}
+.chat-input:focus { border-color: var(--primary); }
+.chat-send {
+  width: 40px; height: 40px; border-radius: 50%; border: none;
+  background: var(--primary); color: #fff; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.typing-indicator { display: flex; gap: 4px; padding: 4px 0; }
+.typing-indicator span {
+  width: 6px; height: 6px; background: var(--text-tertiary);
+  border-radius: 50%; animation: typing 1.2s infinite;
+}
+.typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+.typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes typing { 0%,100% { opacity: 0.3; } 50% { opacity: 1; } }
+
+/* ── Toast ─────────────────────────────────────────────────────────── */
+.toast {
+  position: fixed; top: 60px; left: 50%; transform: translateX(-50%);
+  background: var(--text-primary); color: #fff; padding: 10px 20px;
+  border-radius: var(--radius-lg); font-size: 14px; z-index: 999;
+  opacity: 0; transition: opacity 0.3s; pointer-events: none;
+}
+.toast.show { opacity: 1; }
+
+/* ── Modal ─────────────────────────────────────────────────────────── */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200;
+  display: flex; align-items: flex-end; justify-content: center;
+}
+.modal-sheet {
+  background: var(--bg-card); border-radius: 16px 16px 0 0;
+  padding: 24px 20px calc(24px + var(--safe-bottom)); width: 100%;
+}
+.modal-title { font-size: 16px; font-weight: 600; margin-bottom: 16px; }
+.modal-input {
+  width: 100%; padding: 12px; border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm); font-size: 15px; outline: none; margin-bottom: 16px;
+}
+.modal-input:focus { border-color: var(--primary); }
+.modal-actions { display: flex; gap: 12px; }
+.modal-actions .btn { flex: 1; }
+
+/* ── Skeleton ──────────────────────────────────────────────────────── */
+.skeleton { background: linear-gradient(90deg, #f0f0f0 25%, #e8e8e8 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px; }
+@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+</style>
+</head>
+<body>
+
+<!-- Top Nav -->
+<nav class="top-nav">
+  <h1><span>Voice</span>KB</h1>
+  <div id="navRight"></div>
+</nav>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- Views -->
+<div id="viewHome" class="view active"></div>
+<div id="viewDetail" class="view"></div>
+<div id="viewSearch" class="view"></div>
+<div id="viewChat" class="view"></div>
+
+<!-- FAB Upload Button -->
+<button class="btn btn-primary btn-fab" id="fabUpload" onclick="showUploadModal()">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+</button>
+
+<!-- File input -->
+<input type="file" id="fileInput" accept="audio/*" onchange="handleFileSelect(this.files[0])">
+
+<!-- Bottom Tab Bar -->
+<nav class="tab-bar">
+  <button class="tab-item active" data-view="viewHome" onclick="switchTab(this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+    <span>录音</span>
+  </button>
+  <button class="tab-item" data-view="viewSearch" onclick="switchTab(this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    <span>搜索</span>
+  </button>
+  <button class="tab-item" data-view="viewChat" onclick="switchTab(this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+    <span>问答</span>
+  </button>
+  <button class="tab-item" onclick="switchTab(this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+    <span>我的</span>
+  </button>
+</nav>
+
+<script>
+/* ── State ──────────────────────────────────────────────────────────── */
+const API = '';  // same origin
+let currentView = 'viewHome';
+let recordings = [];
+let currentRecording = null;
+
+/* ── Tab Navigation ────────────────────────────────────────────────── */
+function switchTab(el) {
+  document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  const viewId = el.dataset.view;
+  if (viewId) {
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.getElementById(viewId).classList.add('active');
+    currentView = viewId;
+    if (viewId === 'viewHome') loadRecordings();
+    if (viewId === 'viewSearch') initSearchView();
+    if (viewId === 'viewChat') initChatView();
+  }
+  document.getElementById('fabUpload').classList.toggle('hidden', viewId !== 'viewHome');
+}
+
+/* ── Toast ──────────────────────────────────────────────────────────── */
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+/* ── API Helpers ────────────────────────────────────────────────────── */
+async function api(path, opts = {}) {
+  const resp = await fetch(API + path, opts);
+  if (!resp.ok) throw new Error(`API ${resp.status}`);
+  return resp.json();
+}
+
+/* ── Home View: Recording List ─────────────────────────────────────── */
+async function loadRecordings() {
+  const view = document.getElementById('viewHome');
+  try {
+    recordings = await api('/api/recordings');
+    if (recordings.length === 0) {
+      view.innerHTML = `
+        <div class="empty-state">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/>
+            <path d="M19 10v2a7 7 0 01-14 0v-2"/>
+            <line x1="12" y1="19" x2="12" y2="23"/>
+            <line x1="8" y1="23" x2="16" y2="23"/>
+          </svg>
+          <h3>还没有录音</h3>
+          <p>点击右下角 + 上传你的第一段录音</p>
+          <button class="btn btn-primary" onclick="showUploadModal()">上传录音</button>
+        </div>`;
+      return;
+    }
+    view.innerHTML = recordings.map(r => renderRecordingCard(r)).join('');
+  } catch(e) {
+    view.innerHTML = '<div class="card"><p>加载失败，请稍后重试</p></div>';
+  }
+}
+
+function renderRecordingCard(r) {
+  const date = new Date(r.created_at).toLocaleDateString('zh-CN', {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+  const dur = r.duration ? `${Math.floor(r.duration/60)}分${Math.floor(r.duration%60)}秒` : '处理中';
+  const statusClass = r.status;
+  const statusText = {pending:'等待中', processing:'处理中', completed:'已完成', failed:'失败'}[r.status] || r.status;
+  const speakers = (r.speakers||[]).map((s,i) => `<span class="speaker-tag">${s}</span>`).join('');
+
+  return `
+    <div class="card rec-card" onclick="openRecording('${r.id}')">
+      <div class="rec-header">
+        <div class="rec-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/>
+            <path d="M19 10v2a7 7 0 01-14 0v-2"/>
+          </svg>
+        </div>
+        <div class="rec-info">
+          <div class="rec-name">${r.filename}</div>
+          <div class="rec-meta">${date} · ${dur} <span class="rec-status ${statusClass}">${statusText}</span></div>
+        </div>
+      </div>
+      ${speakers ? `<div class="rec-speakers">${speakers}</div>` : ''}
+    </div>`;
+}
+
+/* ── Upload ─────────────────────────────────────────────────────────── */
+function showUploadModal() {
+  document.getElementById('fileInput').click();
+}
+
+async function handleFileSelect(file) {
+  if (!file) return;
+  const view = document.getElementById('viewHome');
+
+  // Show progress
+  view.innerHTML = `
+    <div class="card">
+      <div class="card-title">上传中: ${file.name}</div>
+      <div class="progress-bar-bg"><div class="progress-bar-fill" id="uploadBar" style="width:0%"></div></div>
+      <div class="progress-text" id="uploadText">上传中...</div>
+    </div>`;
+
+  try {
+    const fd = new FormData();
+    fd.append('file', file);
+    const resp = await fetch(API + '/api/upload', {method:'POST', body:fd});
+    if (!resp.ok) throw new Error('Upload failed');
+    const data = await resp.json();
+
+    showToast('上传成功，开始处理');
+    watchProgress(data.recording_id);
+  } catch(e) {
+    showToast('上传失败: ' + e.message);
+    loadRecordings();
+  }
+}
+
+function watchProgress(recId) {
+  const view = document.getElementById('viewHome');
+  view.innerHTML = `
+    <div class="card">
+      <div class="card-title">处理中...</div>
+      <div class="progress-bar-bg"><div class="progress-bar-fill" id="procBar" style="width:0%"></div></div>
+      <div class="progress-text" id="procText">准备中...</div>
+    </div>`;
+
+  // Poll progress
+  const poll = setInterval(async () => {
+    try {
+      const status = await api(`/api/recordings/${recId}/status`);
+      const bar = document.getElementById('procBar');
+      const text = document.getElementById('procText');
+      if (bar) bar.style.width = Math.max(0, status.percent) + '%';
+      if (text) text.textContent = `${status.step} (${Math.max(0, status.percent)}%)`;
+
+      if (status.percent >= 100 || status.percent < 0) {
+        clearInterval(poll);
+        if (status.percent >= 100) {
+          showToast('处理完成！');
+          setTimeout(() => openRecording(recId), 500);
+        } else {
+          showToast('处理失败');
+          loadRecordings();
+        }
+      }
+    } catch(e) { /* continue polling */ }
+  }, 1500);
+
+  // Also try WebSocket
+  try {
+    const wsProto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const ws = new WebSocket(`${wsProto}//${location.host}/ws/progress/${recId}`);
+    ws.onmessage = (e) => {
+      const status = JSON.parse(e.data);
+      const bar = document.getElementById('procBar');
+      const text = document.getElementById('procText');
+      if (bar) bar.style.width = Math.max(0, status.percent) + '%';
+      if (text) text.textContent = `${status.step} (${Math.max(0, status.percent)}%)`;
+    };
+  } catch(e) { /* WebSocket not critical, polling is backup */ }
+}
+
+/* ── Recording Detail ──────────────────────────────────────────────── */
+async function openRecording(recId) {
+  const view = document.getElementById('viewDetail');
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  view.classList.add('active');
+  document.getElementById('fabUpload').classList.add('hidden');
+
+  try {
+    const rec = await api(`/api/recordings/${recId}`);
+    currentRecording = rec;
+    renderDetail(rec);
+  } catch(e) {
+    view.innerHTML = '<div class="card"><p>加载失败</p></div>';
+  }
+}
+
+function renderDetail(rec) {
+  const view = document.getElementById('viewDetail');
+  const dur = `${Math.floor(rec.duration/60)}分${Math.floor(rec.duration%60)}秒`;
+  const date = new Date(rec.created_at).toLocaleDateString('zh-CN', {year:'numeric',month:'long',day:'numeric',hour:'2-digit',minute:'2-digit'});
+
+  const speakerColors = {};
+  let colorIdx = 0;
+  (rec.speakers||[]).forEach(s => { speakerColors[s] = colorIdx++; });
+
+  const segments = (rec.segments||[]).map(seg => {
+    const ci = speakerColors[seg.speaker_id] ?? 0;
+    const ts = `${String(Math.floor(seg.start/60)).padStart(2,'0')}:${String(Math.floor(seg.start%60)).padStart(2,'0')}`;
+    const initial = seg.speaker_id.charAt(0) || 'S';
+    return `
+      <div class="transcript-item">
+        <div class="transcript-avatar spk-${ci % 5}">${initial}</div>
+        <div class="transcript-bubble">
+          <div class="transcript-speaker">
+            <span class="speaker-tag" onclick="showRenameModal('${seg.speaker_id}')" style="padding:1px 6px;font-size:11px">${seg.speaker_id}</span>
+            <span class="ts">${ts}</span>
+          </div>
+          <div class="transcript-text">${seg.text}</div>
+        </div>
+      </div>`;
+  }).join('');
+
+  view.innerHTML = `
+    <div class="detail-header">
+      <div class="detail-back" onclick="backToList()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+        返回
+      </div>
+      <div class="detail-title">${rec.filename}</div>
+      <div class="detail-meta">${date} · ${dur} · ${(rec.speakers||[]).join(', ')}</div>
+    </div>
+    ${rec.summary ? `
+      <div class="summary-card">
+        <h4>会议摘要</h4>
+        <div class="summary-text">${rec.summary.replace(/\n/g, '<br>')}</div>
+      </div>` : ''}
+    <div style="padding:0 16px;margin-bottom:12px">
+      <div style="font-size:15px;font-weight:600">对话记录</div>
+    </div>
+    <div class="transcript">${segments}</div>`;
+}
+
+function backToList() {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('viewHome').classList.add('active');
+  document.getElementById('fabUpload').classList.remove('hidden');
+  document.querySelectorAll('.tab-item')[0].classList.add('active');
+  loadRecordings();
+}
+
+/* ── Speaker Rename Modal ──────────────────────────────────────────── */
+function showRenameModal(speakerId) {
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.id = 'renameModal';
+  modal.innerHTML = `
+    <div class="modal-sheet">
+      <div class="modal-title">标注说话人</div>
+      <input class="modal-input" id="renameInput" placeholder="输入真实姓名" value="">
+      <div class="modal-actions">
+        <button class="btn btn-outline" onclick="closeModal()">取消</button>
+        <button class="btn btn-primary" onclick="doRename('${speakerId}')">保存</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  setTimeout(() => document.getElementById('renameInput').focus(), 100);
+}
+
+async function doRename(oldName) {
+  const newName = document.getElementById('renameInput').value.trim();
+  if (!newName) return;
+
+  try {
+    await api('/api/speakers/rename', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({speaker_id: oldName, new_name: newName}),
+    });
+    showToast(`已标注为"${newName}"`);
+    closeModal();
+    if (currentRecording) openRecording(currentRecording.id);
+  } catch(e) {
+    showToast('标注失败');
+  }
+}
+
+function closeModal() {
+  const m = document.getElementById('renameModal');
+  if (m) m.remove();
+}
+
+/* ── Search View ───────────────────────────────────────────────────── */
+function initSearchView() {
+  const view = document.getElementById('viewSearch');
+  if (view.querySelector('.search-bar')) return;  // already initialized
+  view.innerHTML = `
+    <div class="search-bar">
+      <input class="search-input" id="searchInput" placeholder="搜索录音内容..." oninput="debounceSearch()">
+    </div>
+    <div id="searchResults"></div>`;
+}
+
+let searchTimer;
+function debounceSearch() {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(doSearch, 400);
+}
+
+async function doSearch() {
+  const q = document.getElementById('searchInput')?.value?.trim();
+  const container = document.getElementById('searchResults');
+  if (!q || !container) { if(container) container.innerHTML = ''; return; }
+
+  try {
+    const results = await api(`/api/search?q=${encodeURIComponent(q)}&type=hybrid`);
+    if (results.length === 0) {
+      container.innerHTML = '<div class="card"><p style="color:var(--text-tertiary)">没有找到相关内容</p></div>';
+      return;
+    }
+    container.innerHTML = results.map(r => {
+      const text = r.segment.text.replace(new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'), '<mark class="search-highlight">$1</mark>');
+      return `
+        <div class="search-result-item" onclick="openRecording('${r.recording_id}')">
+          <div style="font-size:12px;color:var(--text-tertiary);margin-bottom:4px">${r.recording_filename} · ${r.segment.speaker_id}</div>
+          <div style="font-size:14px">${text}</div>
+        </div>`;
+    }).join('');
+  } catch(e) {
+    container.innerHTML = '<div class="card"><p>搜索出错</p></div>';
+  }
+}
+
+/* ── Chat View ─────────────────────────────────────────────────────── */
+function initChatView() {
+  const view = document.getElementById('viewChat');
+  if (view.querySelector('.chat-messages')) return;
+  view.innerHTML = `
+    <div class="chat-messages" id="chatMessages">
+      <div class="chat-msg ai">
+        <div class="bubble">你好！我是 VoiceKB 智能助手。你可以问我关于录音内容的任何问题，比如"张三说了什么关于预算的内容？"</div>
+      </div>
+    </div>
+    <div class="chat-input-bar">
+      <input class="chat-input" id="chatInput" placeholder="输入你的问题..." onkeypress="if(event.key==='Enter')sendChat()">
+      <button class="chat-send" onclick="sendChat()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+      </button>
+    </div>`;
+}
+
+async function sendChat() {
+  const input = document.getElementById('chatInput');
+  const q = input.value.trim();
+  if (!q) return;
+  input.value = '';
+
+  const msgs = document.getElementById('chatMessages');
+  msgs.innerHTML += `<div class="chat-msg user"><div class="bubble">${q}</div></div>`;
+  msgs.innerHTML += `<div class="chat-msg ai" id="chatLoading"><div class="bubble"><div class="typing-indicator"><span></span><span></span><span></span></div></div></div>`;
+  msgs.scrollTop = msgs.scrollHeight;
+
+  try {
+    const result = await api('/api/ask', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({question: q}),
+    });
+
+    document.getElementById('chatLoading')?.remove();
+
+    let html = result.answer.replace(/\n/g, '<br>');
+    if (result.sources?.length) {
+      html += '<br><span class="source-link">来源: ';
+      const seen = new Set();
+      result.sources.forEach(s => {
+        if (!seen.has(s.recording_id)) {
+          seen.add(s.recording_id);
+          html += `<a href="#" onclick="openRecording('${s.recording_id}');return false">${s.recording_filename}</a> `;
+        }
+      });
+      html += '</span>';
+    }
+
+    msgs.innerHTML += `<div class="chat-msg ai"><div class="bubble">${html}</div></div>`;
+    msgs.scrollTop = msgs.scrollHeight;
+  } catch(e) {
+    document.getElementById('chatLoading')?.remove();
+    msgs.innerHTML += `<div class="chat-msg ai"><div class="bubble">抱歉，出了点问题，请稍后再试。</div></div>`;
+  }
+}
+
+/* ── Init ───────────────────────────────────────────────────────────── */
+loadRecordings();
+</script>
+</body>
+</html>
