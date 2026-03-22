@@ -47,8 +47,8 @@
       </view>
     </view>
 
-    <!-- 空状态 -->
-    <view v-else class="empty-state">
+    <!-- 空状态（仅在加载完成后显示） -->
+    <view v-else-if="loaded" class="empty-state">
       <text class="empty-icon">🎙</text>
       <text class="empty-title">上传你的第一段录音</text>
       <text class="empty-desc">支持 m4a、mp3、wav 等格式</text>
@@ -91,6 +91,7 @@ import { recordingApi, searchApi, categoryApi, uploadAudio } from '@/api'
 import { relativeTime, friendlyDuration } from '@/utils/format'
 
 const recordings = ref([])
+const loaded = ref(false)
 const activeCategory = ref('')
 const searchQuery = ref('')
 const searchResults = ref(null)
@@ -123,6 +124,7 @@ let listRefreshTimer = null
 async function loadRecordings() {
   try {
     recordings.value = await recordingApi.list()
+    loaded.value = true
     // 有录音在处理中时自动刷新
     if (recordings.value.some(r => r.status === 'processing')) {
       clearTimeout(listRefreshTimer)

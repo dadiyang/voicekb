@@ -1,8 +1,8 @@
 <template>
   <view class="page flex-col">
-    <!-- 清除对话按钮 -->
+    <!-- 清除对话 — 右上角小图标 -->
     <view class="chat-topbar">
-      <text class="chat-clear" @click="clearChat">清除对话</text>
+      <text class="ti ti-trash chat-clear-icon" @click="clearChat"></text>
     </view>
 
     <!-- 消息区域 -->
@@ -190,30 +190,28 @@ onShow(() => {
 
 <style lang="scss" scoped>
 .page {
-  /* 减去自定义 tabBar(110rpx) */
-  height: #{"calc(100vh - var(--window-top, 0px) - 110rpx)"};
+  min-height: #{"calc(100vh - var(--window-top, 0px))"};
   background: $color-bg-page;
-  overflow: hidden;
+  /* 底部留出：tabBar(57px) + 输入栏(50px) + 快捷栏(40px) + 安全距离 */
+  padding-bottom: 320rpx;
 }
-.flex-col { display: flex; flex-direction: column; }
 
 /* ── 顶部清除按钮 ── */
 .chat-topbar {
   display: flex;
   justify-content: flex-end;
-  padding: $spacing-sm $spacing-lg;
+  padding: 4rpx $spacing-lg;
   flex-shrink: 0;
 }
-.chat-clear {
-  font-size: $font-xs;
-  color: $color-text-tertiary;
+.chat-clear-icon {
+  font-size: 32rpx;
+  color: $color-text-disabled;
+  padding: 8rpx;
 }
 
 /* ── 消息列表 ── */
 .chat-messages {
-  flex: 1;
   padding: 24rpx;
-  min-height: 0; /* 关键：让 flex 子项可以缩小 */
 }
 
 .chat-msg {
@@ -284,11 +282,15 @@ onShow(() => {
   50% { opacity: 1; }
 }
 
-/* ── 快捷提问栏 ── */
+/* ── 快捷提问栏 — 固定在输入栏上方 ── */
 .quick-bar {
+  position: fixed;
+  bottom: #{"calc(110rpx + 50px)"}; /* tabBar + 输入栏 */
+  left: 0; right: 0;
   white-space: nowrap;
   padding: $spacing-xs $spacing-md;
-  flex-shrink: 0;
+  background: $color-bg-page;
+  z-index: 10;
 }
 .quick-chips-row {
   display: inline-flex;
@@ -308,14 +310,17 @@ onShow(() => {
   flex-shrink: 0;
 }
 
-/* ── 底部输入栏 ── */
+/* ── 底部输入栏 — 固定在 tabBar 上方 ── */
 .chat-input-bar {
+  position: fixed;
+  bottom: 110rpx; /* tabBar 高度 */
+  left: 0; right: 0;
   display: flex;
   gap: $spacing-md;
   padding: $spacing-md $spacing-lg;
   background: $color-bg-card;
   border-top: 1rpx solid $color-border;
-  flex-shrink: 0;
+  z-index: 10;
 }
 .chat-input {
   flex: 1;

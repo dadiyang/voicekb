@@ -75,17 +75,17 @@ async function loadStats() {
   } catch (e) { /* ignore */ }
 }
 
-/* ── 说话人管理 ── */
+/* ── 说话人管理 — 跳转独立页面 ── */
 function manageSpeakers() {
-  uni.showLoading({ title: '加载中' })
+  uni.navigateTo({ url: '/pages/speakers/index' })
+}
+
+/* ── 旧代码备份（已废弃）── */
+function _old_manageSpeakers() {
   speakerApi.list().then(speakers => {
-    uni.hideLoading()
-    if (!speakers.length) {
-      uni.showToast({ title: '暂无已注册说话人', icon: 'none' })
-      return
-    }
+    if (!speakers.length) { return }
     uni.showActionSheet({
-      itemList: speakers.map(s => `${s.name} (${s.recording_ids.length}条录音) → 重命名`),
+      itemList: speakers.map(s => `${s.name} → 重命名`),
       success: (res) => {
         const spk = speakers[res.tapIndex]
         uni.showModal({
@@ -109,7 +109,10 @@ function manageSpeakers() {
 
 /* ── 术语管理（分 tab：人名/术语） ── */
 function manageVocab() {
-  uni.showLoading({ title: '加载中' })
+  uni.navigateTo({ url: '/pages/vocabulary/index' })
+}
+
+function _old_manageVocab() {
   vocabApi.list().then(vocab => {
     uni.hideLoading()
     // 先选择类别
