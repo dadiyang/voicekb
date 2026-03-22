@@ -1,0 +1,12 @@
+{
+  "name": "VoiceKB",
+  "appid": "voicekb",
+  "description": "个人录音知识库",
+  "versionName": "0.1.0",
+  "versionCode": "100",
+  "h5": {
+    "title": "VoiceKB",
+    "router": {"mode": "hash"},
+    "devServer": {"port": 5173, "proxy": {"/api": {"target": "http://localhost:18089", "changeOrigin": true}}}
+  }
+}

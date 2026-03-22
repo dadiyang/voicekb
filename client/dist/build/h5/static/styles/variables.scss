@@ -1,0 +1,66 @@
+// ============================================================
+// Design Tokens — VoiceKB 设计体系（继承 hotel_shop 规范）
+// 全局变量，通过 vite 自动注入到所有 SCSS
+// ============================================================
+
+// === 品牌色（靛蓝） ===
+$color-primary: #4F46E5;
+$color-primary-dark: #3730A3;
+$color-primary-light: #EEF2FF;
+$color-primary-gradient: linear-gradient(135deg, #6366F1, #4F46E5);
+$color-primary-banner: linear-gradient(180deg, #6366F1 0%, #4F46E5 100%);
+
+// === 功能色 ===
+$color-price: #FF4D4F;
+$color-success: #00B578;
+$color-warning: #FF8F1F;
+$color-info: #1677FF;
+$color-danger: #FF3B30;
+
+// === 中性色 ===
+$color-text-primary: #1D2129;
+$color-text-secondary: #4E5969;
+$color-text-tertiary: #86909C;
+$color-text-disabled: #C9CDD4;
+$color-border: #E5E6EB;
+$color-bg-page: #F7F8FA;
+$color-bg-card: #FFFFFF;
+$color-bg-hover: #F2F3F5;
+
+// === 字号 ===
+$font-xs: 20rpx;
+$font-sm: 24rpx;
+$font-base: 28rpx;
+$font-md: 30rpx;
+$font-lg: 32rpx;
+$font-xl: 36rpx;
+$font-xxl: 48rpx;
+
+// === 间距 ===
+$spacing-xs: 8rpx;
+$spacing-sm: 12rpx;
+$spacing-md: 16rpx;
+$spacing-lg: 24rpx;
+$spacing-xl: 32rpx;
+$spacing-xxl: 48rpx;
+
+// === 圆角 ===
+$radius-sm: 8rpx;
+$radius-md: 12rpx;
+$radius-lg: 16rpx;
+$radius-xl: 24rpx;
+$radius-full: 999rpx;
+
+// === 阴影 ===
+$shadow-sm: 0 2rpx 8rpx rgba(0, 0, 0, 0.04);
+$shadow-md: 0 4rpx 16rpx rgba(0, 0, 0, 0.08);
+$shadow-lg: 0 8rpx 32rpx rgba(0, 0, 0, 0.12);
+
+// === 状态色映射 ===
+$status-pending: #FF8F1F;
+$status-paid: #FF8F1F;
+$status-accepted: #1677FF;
+$status-delivering: #1677FF;
+$status-completed: #00B578;
+$status-cancelled: #86909C;
+$status-rejected: #86909C;

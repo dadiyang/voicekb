@@ -1,0 +1,214 @@
+/* ============================================================
+   Global Styles — 美团风设计体系
+   ============================================================ */
+
+page {
+  background-color: $color-bg-page;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  color: $color-text-primary;
+  font-size: $font-base;
+  line-height: 1.5;
+}
+
+/* Reset */
+view, text, image, scroll-view, input, textarea, button {
+  box-sizing: border-box;
+}
+
+/* ---- Layout utilities ---- */
+.page {
+  min-height: #{"calc(100vh - var(--window-top, 0px))"};
+  min-height: #{"calc(100dvh - var(--window-top, 0px))"};
+  background: $color-bg-page;
+  overflow: hidden;
+}
+
+.page-white {
+  min-height: #{"calc(100vh - var(--window-top, 0px))"};
+  min-height: #{"calc(100dvh - var(--window-top, 0px))"};
+  background: $color-bg-card;
+  overflow: hidden;
+}
+
+.flex { display: flex; }
+.flex-col { display: flex; flex-direction: column; }
+.flex-center { display: flex; align-items: center; justify-content: center; }
+.flex-between { display: flex; align-items: center; justify-content: space-between; }
+.flex-1 { flex: 1; }
+
+/* ---- Typography ---- */
+.text-primary { color: $color-primary-dark; }
+.text-danger { color: $color-danger; }
+.text-success { color: $color-success; }
+.text-warning { color: $color-warning; }
+.text-gray { color: $color-text-tertiary; }
+.text-bold { font-weight: 700; }
+
+.price {
+  color: $color-price;
+  font-weight: 700;
+}
+
+/* ---- Cards ---- */
+.card {
+  background: $color-bg-card;
+  border-radius: $radius-lg;
+  margin: $spacing-md $spacing-lg;
+  padding: $spacing-lg;
+  box-shadow: $shadow-sm;
+}
+
+/* ---- Buttons ---- */
+.btn-primary {
+  background: $color-primary-gradient;
+  color: #fff;
+  border: none;
+  border-radius: $radius-full;
+  height: 88rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: $font-lg;
+  font-weight: 600;
+  box-shadow: 0 4rpx 16rpx rgba(255, 140, 0, 0.3);
+}
+
+.btn-primary:active {
+  opacity: 0.85;
+}
+
+.btn-danger {
+  background: $color-danger;
+  color: #ffffff;
+  border: none;
+  border-radius: $radius-full;
+  height: 88rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: $font-lg;
+  font-weight: 500;
+}
+
+.btn-outline {
+  background: $color-bg-card;
+  color: $color-primary-dark;
+  border: 2rpx solid $color-primary-dark;
+  border-radius: $radius-full;
+  height: 88rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: $font-lg;
+  font-weight: 500;
+}
+
+.btn-small {
+  height: 56rpx;
+  padding: 0 $spacing-lg;
+  font-size: 26rpx;
+  border-radius: 28rpx;
+}
+
+/* ---- Safe area ---- */
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* ---- Loading ---- */
+.loading-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40rpx;
+}
+
+/* ---- Section ---- */
+.section-title {
+  font-size: $font-lg;
+  font-weight: 700;
+  color: $color-text-primary;
+  padding: $spacing-lg;
+}
+
+/* ---- Input ---- */
+.input-field {
+  width: 100%;
+  height: 88rpx;
+  background: $color-bg-page;
+  border-radius: $radius-md;
+  padding: 0 $spacing-lg;
+  font-size: $font-base;
+  color: $color-text-primary;
+}
+
+/* ---- Tags ---- */
+.tag {
+  font-size: $font-xs;
+  padding: 2rpx 10rpx;
+  border-radius: $radius-sm;
+  display: inline-block;
+}
+
+.tag-orange {
+  color: #FF6B35;
+  background: #FFF5F0;
+}
+
+.tag-red {
+  color: $color-price;
+  background: #FFF1F0;
+}
+
+.tag-green {
+  color: $color-success;
+  background: #E8FFF3;
+}
+
+.tag-blue {
+  color: $color-info;
+  background: #E8F3FF;
+}
+
+.tag-gray {
+  color: $color-text-tertiary;
+  background: $color-bg-hover;
+}
+
+/* ---- Gradient header ---- */
+.gradient-header {
+  background: $color-primary-banner;
+  padding: $spacing-xl $spacing-lg;
+  padding-top: calc(var(--status-bar-height, 25px) + #{$spacing-xl});
+  color: #ffffff;
+}
+
+/* ---- Skeleton loading ---- */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, #F2F3F5 25%, #E5E6EB 50%, #F2F3F5 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: $radius-md;
+}
+
+.skeleton-text {
+  height: 28rpx;
+  margin-bottom: $spacing-sm;
+}
+
+.skeleton-avatar {
+  width: 80rpx;
+  height: 80rpx;
+  border-radius: 50%;
+}
+
+.skeleton-image {
+  width: 160rpx;
+  height: 160rpx;
+  border-radius: $radius-md;
+}

@@ -69,10 +69,24 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 静态文件（H5 前端）
+# 静态文件（uni-app 构建产物或旧 web 目录）
+h5_dir = Path(__file__).parent.parent.parent.parent / "client" / "dist" / "build" / "h5"
 web_dir = Path(__file__).parent.parent / "web"
+_frontend_dir = h5_dir if h5_dir.exists() else web_dir
+
+# 挂载 assets/ 目录（uni-app 构建的 JS/CSS）
+_assets_dir = _frontend_dir / "assets" if _frontend_dir.exists() else None
+if _assets_dir and _assets_dir.exists():
+    app.mount("/assets", StaticFiles(directory=str(_assets_dir)), name="assets")
+
+# 挂载 static/ 目录
+_static_sub = _frontend_dir / "static" if _frontend_dir.exists() else None
+if _static_sub and _static_sub.exists():
+    app.mount("/static", StaticFiles(directory=str(_static_sub)), name="static")
+
+# 旧的 web/ 目录（fallback）
 if web_dir.exists():
-    app.mount("/static", StaticFiles(directory=str(web_dir)), name="static")
+    app.mount("/legacy-static", StaticFiles(directory=str(web_dir)), name="legacy")
 
 
 # ── 请求/响应模型 ────────────────────────────────────────────────────────
@@ -94,10 +108,10 @@ class CategoryRequest(BaseModel):
 @app.get("/")
 async def index():
     """返回 H5 首页。"""
-    html_path = web_dir / "index.html"
-    if html_path.exists():
-        from fastapi.responses import HTMLResponse
-        return HTMLResponse(html_path.read_text(encoding="utf-8"))
+    from fastapi.responses import HTMLResponse
+    html = _frontend_dir / "index.html" if _frontend_dir.exists() else None
+    if html and html.exists():
+        return HTMLResponse(html.read_text(encoding="utf-8"))
     return {"message": "VoiceKB API"}
 
 

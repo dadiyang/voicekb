@@ -1,0 +1,25 @@
+{
+  "pages": [
+    {"path": "pages/recordings/index", "style": {"navigationBarTitleText": "VoiceKB"}},
+    {"path": "pages/recordings/detail", "style": {"navigationBarTitleText": "录音详情", "navigationStyle": "custom"}},
+    {"path": "pages/chat/index", "style": {"navigationBarTitleText": "AI 问答"}},
+    {"path": "pages/profile/index", "style": {"navigationBarTitleText": "我的"}}
+  ],
+  "tabBar": {
+    "color": "#86909C",
+    "selectedColor": "#4F46E5",
+    "backgroundColor": "#FFFFFF",
+    "borderStyle": "white",
+    "list": [
+      {"pagePath": "pages/recordings/index", "text": "录音", "iconPath": "static/icons/mic.png", "selectedIconPath": "static/icons/mic-active.png"},
+      {"pagePath": "pages/chat/index", "text": "问答", "iconPath": "static/icons/chat.png", "selectedIconPath": "static/icons/chat-active.png"},
+      {"pagePath": "pages/profile/index", "text": "我的", "iconPath": "static/icons/user.png", "selectedIconPath": "static/icons/user-active.png"}
+    ]
+  },
+  "globalStyle": {
+    "navigationBarTextStyle": "black",
+    "navigationBarTitleText": "VoiceKB",
+    "navigationBarBackgroundColor": "#FFFFFF",
+    "backgroundColor": "#F7F8FA"
+  }
+}
