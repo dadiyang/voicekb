@@ -39,7 +39,11 @@ class OpenAICompatibleLLM:
                 )
                 resp.raise_for_status()
                 data = resp.json()
-                return data["choices"][0]["message"]["content"]
+                content = data["choices"][0]["message"]["content"]
+                # 去掉 Qwen3 的 <think>...</think> 思考过程
+                import re
+                content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL).strip()
+                return content
         except Exception:
             logger.error("LLM 生成失败", exc_info=True)
             return ""

@@ -178,8 +178,9 @@ class ProcessingPipeline:
                 self._speaker_db.update_embedding(matched.id, centroid)
                 logger.info("已识别说话人: %s -> %s", label, matched.name)
             else:
-                # 注册为新说话人
-                new_name = label  # 保持 SPEAKER_XX，用户可后续标注
+                # 注册为新说话人，用全局递增编号确保唯一
+                existing_count = len(self._speaker_db.get_all_speakers())
+                new_name = f"说话人{existing_count + 1}"
                 new_spk = self._speaker_db.register_speaker(
                     new_name, centroid, recording_id,
                 )
