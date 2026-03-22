@@ -102,6 +102,21 @@ async def health():
     return {"status": "ok", "version": "0.1.0"}
 
 
+@app.get("/api/recordings/{recording_id}/audio")
+async def get_audio(recording_id: str):
+    """返回录音的音频文件用于播放。"""
+    from fastapi.responses import FileResponse
+
+    # 在 uploads 目录中查找匹配的文件
+    for f in settings.upload_dir.iterdir():
+        if f.name.startswith(recording_id):
+            return FileResponse(
+                f, media_type="audio/wav",
+                headers={"Accept-Ranges": "bytes"},
+            )
+    return JSONResponse({"error": "音频文件不存在"}, status_code=404)
+
+
 @app.post("/api/upload")
 async def upload_audio(file: UploadFile = File(...)):
     """上传音频文件并启动后台处理。"""
