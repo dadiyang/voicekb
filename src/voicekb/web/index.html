@@ -201,7 +201,15 @@ a { color: var(--color-primary); text-decoration: none; }
   border-radius: var(--radius-md); padding: 16px; margin: 0 16px 12px;
 }
 .summary-card h4 { font-size: 14px; font-weight: 600; color: var(--color-primary-dark); margin-bottom: 8px; }
-.summary-card .summary-text { font-size: 13px; color: var(--color-text-secondary); line-height: 1.7; }
+.summary-card .summary-text {
+  font-size: 13px; color: var(--color-text-secondary); line-height: 1.7;
+  transition: max-height 0.3s ease;
+}
+.summary-card .summary-text.collapsed {
+  max-height: 120px; overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
+  mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
+}
 .summary-card .summary-text h1,.summary-card .summary-text h2,.summary-card .summary-text h3 { font-size: 14px; font-weight: 600; color: var(--color-text-primary); margin: 10px 0 4px; }
 .summary-card .summary-text ul,.summary-card .summary-text ol { padding-left: 18px; margin: 4px 0; }
 .summary-card .summary-text li { margin-bottom: 3px; }
@@ -594,6 +602,12 @@ async function loadRecordings() {
       ${filterBar}
       <div id="homeSearchResults" class="hidden"></div>
       <div id="homeRecordingList">${cards}</div>`;
+
+    // 如果有录音在处理中，自动定时刷新列表
+    if (recordings.some(r => r.status === 'processing')) {
+      clearTimeout(window._listRefreshTimer);
+      window._listRefreshTimer = setTimeout(loadRecordings, 5000);
+    }
   } catch(e) {
     view.innerHTML = '<div class="card"><p>加载失败，请稍后重试</p></div>';
   }
@@ -904,9 +918,12 @@ function renderDetail(rec) {
       <div class="summary-card">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
           <h4 style="margin:0">会议摘要</h4>
-          <span style="font-size:11px;color:var(--color-primary);cursor:pointer" onclick="openPromptEditor('${rec.category||'_default'}','${rec.id}')">调整总结方式</span>
+          <div style="display:flex;gap:8px;align-items:center">
+            <span style="font-size:11px;color:var(--color-primary);cursor:pointer" onclick="openPromptEditor('${rec.category||'_default'}','${rec.id}')">调整总结方式</span>
+            <span id="summaryToggle" style="font-size:11px;color:var(--color-text-tertiary);cursor:pointer" onclick="toggleSummary()">收起</span>
+          </div>
         </div>
-        <div class="summary-text">${formatMarkdown(rec.summary)}</div>
+        <div class="summary-text" id="summaryContent">${formatMarkdown(rec.summary)}</div>
       </div>` : ''}
     <div style="padding:0 16px;margin-bottom:12px">
       <div style="display:flex;justify-content:space-between;align-items:center">
@@ -934,6 +951,19 @@ function renderDetail(rec) {
         }
       });
     });
+  }
+}
+
+function toggleSummary() {
+  const el = document.getElementById('summaryContent');
+  const btn = document.getElementById('summaryToggle');
+  if (!el || !btn) return;
+  if (el.classList.contains('collapsed')) {
+    el.classList.remove('collapsed');
+    btn.textContent = '收起';
+  } else {
+    el.classList.add('collapsed');
+    btn.textContent = '展开';
   }
 }
 
@@ -1059,9 +1089,11 @@ async function resummarizeRecording(recId) {
 async function reprocessRecording(recId) {
   try {
     await api(`/api/recordings/${recId}/reprocess`, {method:'POST'});
-    showToast('开始重新识别，请稍候...');
-    // 留在详情页显示进度
-    openRecording(recId);
+    showToast('已开始重新识别，可返回列表查看进度');
+    // 刷新当前详情页显示处理中状态
+    if (currentRecording?.id === recId) {
+      openRecording(recId);
+    }
   } catch(e) {
     showToast('操作失败: ' + e.message);
   }
