@@ -908,10 +908,45 @@ async function initProfileView() {
         <span>说话人管理</span>
         <span class="arrow">&rsaquo;</span>
       </div>
+      <div class="profile-menu-item" onclick="showAbout()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        <span>关于 VoiceKB</span>
+        <span class="arrow">&rsaquo;</span>
+      </div>
       <div style="text-align:center;margin-top:24px;font-size:12px;color:var(--color-text-tertiary)">
         VoiceKB v0.1.0 · MIT License
       </div>
     </div>`;
+}
+
+function showAbout() {
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.id = 'renameModal';
+  modal.innerHTML = `
+    <div class="modal-sheet" style="text-align:center">
+      <div style="font-size:36px;font-weight:800;letter-spacing:-1px;margin-bottom:4px">
+        <span style="color:var(--color-primary)">Voice</span>KB
+      </div>
+      <div style="font-size:13px;color:var(--color-text-tertiary);margin-bottom:20px">v0.1.0 · \u5f00\u6e90\u4e2a\u4eba\u5f55\u97f3\u77e5\u8bc6\u5e93</div>
+      <div style="text-align:left;font-size:13px;color:var(--color-text-secondary);line-height:1.8;padding:0 4px">
+        <p style="margin-bottom:12px">\u628a\u65e5\u5e38\u5f55\u97f3\u53d8\u6210\u53ef\u641c\u7d22\u3001\u53ef\u5bf9\u8bdd\u7684\u4e2a\u4eba\u77e5\u8bc6\u5e93\u3002</p>
+        <p style="margin-bottom:12px"><b>\u6838\u5fc3\u80fd\u529b</b></p>
+        <p>\u2022 \u667a\u80fd\u8bed\u97f3\u8bc6\u522b\uff0c\u81ea\u52a8\u533a\u5206\u8bf4\u8bdd\u4eba</p>
+        <p>\u2022 \u8de8\u5f55\u97f3\u58f0\u7eb9\u8bc6\u522b\uff0c\u540c\u4e00\u4eba\u81ea\u52a8\u5173\u8054</p>
+        <p>\u2022 \u5173\u952e\u8bcd + \u8bed\u4e49\u53cc\u5f15\u64ce\u641c\u7d22</p>
+        <p>\u2022 AI \u667a\u80fd\u95ee\u7b54\uff0c\u57fa\u4e8e\u5f55\u97f3\u5185\u5bb9\u56de\u7b54\u95ee\u9898</p>
+        <p style="margin-top:12px">\u2022 \u5b8c\u5168\u672c\u5730\u90e8\u7f72\uff0c\u6570\u636e\u4e0d\u51fa\u4f60\u7684\u670d\u52a1\u5668</p>
+        <p style="margin-top:16px;font-size:12px;color:var(--color-text-tertiary)">
+          \u6280\u672f\u6808\uff1afaster-whisper \xb7 resemblyzer \xb7 ChromaDB \xb7 Qwen3<br>
+          \u534f\u8bae\uff1aMIT License
+        </p>
+      </div>
+      <div class="modal-actions" style="margin-top:20px">
+        <button class="btn btn-primary btn-block" onclick="closeModal()">\u77e5\u9053\u4e86</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
 }
 
 async function showSpeakerManager() {
