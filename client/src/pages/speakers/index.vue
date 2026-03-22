@@ -53,9 +53,12 @@ function rename(spk) {
     confirmText: '保存',
     success: async (res) => {
       if (res.confirm && res.content?.trim()) {
-        await speakerApi.rename(spk.name, res.content.trim())
+        const newName = res.content.trim()
+        await speakerApi.rename(spk.name, newName)
+        // 本地更新，不重新加载（避免滚动位置重置）
+        const found = speakers.value.find(s => s.id === spk.id)
+        if (found) found.name = newName
         uni.showToast({ title: '已更新', icon: 'success' })
-        load()
       }
     },
   })
@@ -78,7 +81,7 @@ onShow(load)
 .header-title { font-size: $font-xl; font-weight: 700; color: #fff; display: block; }
 .header-desc { font-size: $font-sm; color: rgba(255,255,255,0.85); display: block; margin-top: $spacing-xs; }
 
-.list-section { padding: $spacing-lg; }
+.list-section { padding: $spacing-lg; padding-bottom: 120rpx; }
 
 .empty-hint { text-align: center; padding: $spacing-xxl; color: $color-text-tertiary;
   text { display: block; font-size: $font-base; }
