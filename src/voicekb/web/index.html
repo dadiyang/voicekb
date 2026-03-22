@@ -252,6 +252,36 @@ a { color: var(--color-primary); text-decoration: none; }
   background: #E3F2FD; color: #1677FF;
 }
 
+/* ===== Prompt Editor ===== */
+.prompt-editor {
+  min-height: 100px; padding: 10px 12px; font-size: 13px; line-height: 1.8;
+  border: 1.5px solid var(--color-border); border-radius: var(--radius-lg);
+  background: var(--color-bg-card); color: var(--color-text-primary);
+  outline: none; white-space: pre-wrap; word-break: break-word;
+}
+.prompt-editor:focus { border-color: var(--color-primary); }
+.prompt-editor:empty::before {
+  content: attr(data-placeholder); color: var(--color-text-disabled);
+}
+.var-chip {
+  display: inline-block; padding: 1px 8px; margin: 0 2px;
+  background: var(--color-primary-light); color: var(--color-primary-dark);
+  border-radius: var(--radius-sm); font-size: 12px; font-weight: 500;
+  vertical-align: baseline; user-select: all; cursor: default;
+}
+.var-dropdown {
+  position: absolute; background: var(--color-bg-card); border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); z-index: 300;
+  min-width: 140px; overflow: hidden;
+}
+.var-dropdown-item {
+  padding: 10px 14px; font-size: 13px; cursor: pointer;
+  display: flex; align-items: center; gap: 8px;
+}
+.var-dropdown-item:active, .var-dropdown-item:hover { background: var(--color-bg-hover); }
+.var-dropdown-item .var-label { color: var(--color-text-primary); }
+.var-dropdown-item .var-desc { font-size: 11px; color: var(--color-text-tertiary); }
+
 /* ===== Search — 继承 hotel_shop input 规范 ===== */
 .search-bar {
   display: flex; gap: 8px; padding: 0 12px; margin-bottom: 8px;
@@ -1120,55 +1150,238 @@ async function initProfileView() {
     </div>`;
 }
 
+// ── 变量定义：用户看到的标签 → 内部占位符 ──
+const PROMPT_VARS = [
+  {label: '录音标题', key: '{标题}', desc: '自动生成的标题'},
+  {label: '参与者', key: '{参与者}', desc: '所有说话人名称'},
+  {label: '时长', key: '{时长}', desc: '录音分钟数'},
+  {label: '分类', key: '{分类}', desc: '录音类别'},
+];
+
+let promptSelectedCat = '_default';
+
 async function showPromptManager() {
   const prompts = await api('/api/summary-prompts');
   const catPresets = await api('/api/categories');
-  const cats = ['_default', ...catPresets.map(c => c.name || c)];
-  const catLabels = {'_default': '通用（所有类别的默认模板）'};
+  const cats = [{name:'_default'}, ...catPresets];
+  const catLabel = c => c === '_default' ? '通用' : c;
 
   const modal = document.createElement('div');
   modal.className = 'modal-overlay';
   modal.id = 'renameModal';
   modal.onclick = (e) => { if (e.target === modal) closeModal(); };
 
-  // 已有的自定义 prompt
-  const existing = prompts.map(p => `
-    <div style="border:1px solid var(--color-border);border-radius:var(--radius-lg);padding:12px;margin-bottom:10px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-        <span style="font-weight:600;font-size:13px">${catLabels[p.category] || p.category}</span>
-        <span style="color:var(--color-text-disabled);cursor:pointer;font-size:16px" onclick="deletePrompt(${p.id})">&times;</span>
-      </div>
-      <div style="font-size:12px;color:var(--color-text-secondary);max-height:60px;overflow:hidden;line-height:1.5">${p.prompt.substring(0, 100)}...</div>
-    </div>`).join('');
+  // 已有模板列表
+  const existing = prompts.map(p => {
+    const preview = promptToDisplay(p.prompt).substring(0, 80);
+    return `
+      <div style="border:1px solid var(--color-border);border-radius:var(--radius-lg);padding:12px;margin-bottom:10px;cursor:pointer"
+           onclick="editPrompt('${p.category.replace(/'/g,"\\'")}', ${JSON.stringify(p.prompt).replace(/"/g,'&quot;')})">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+          <span style="font-weight:600;font-size:13px">${catLabel(p.category)}</span>
+          <span style="color:var(--color-text-disabled);cursor:pointer;font-size:16px;padding:0 4px" onclick="event.stopPropagation();deletePrompt(${p.id})">&times;</span>
+        </div>
+        <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.5">${preview}...</div>
+      </div>`;
+  }).join('');
 
-  // 可用的分类选项（排除已有 prompt 的）
+  // 分类选择 chips
   const usedCats = new Set(prompts.map(p => p.category));
-  const availCats = cats.filter(c => !usedCats.has(c));
-  const catOptions = availCats.map(c => `<option value="${c}">${catLabels[c] || c}</option>`).join('');
+  const availCats = cats.map(c => c.name).filter(c => !usedCats.has(c));
+  const chips = availCats.map(c =>
+    `<button class="filter-chip ${promptSelectedCat === c ? 'active' : ''}" onclick="promptSelectedCat='${c}';document.querySelectorAll('#promptCatChips .filter-chip').forEach(b=>b.classList.remove('active'));this.classList.add('active')" style="margin-bottom:6px">${catLabel(c)}</button>`
+  ).join(' ');
 
   modal.innerHTML = `
-    <div class="modal-sheet">
+    <div class="modal-sheet" style="max-height:85vh;overflow-y:auto">
       <div class="modal-title">摘要模板</div>
-      <div style="font-size:12px;color:var(--color-text-tertiary);margin-bottom:14px">为不同类别的录音定制摘要生成规则，处理时自动匹配</div>
-      ${existing || '<p style="color:var(--color-text-tertiary);text-align:center;padding:12px 0;font-size:13px">暂未自定义，使用系统默认模板</p>'}
+      <div style="font-size:12px;color:var(--color-text-tertiary);margin-bottom:14px">为不同类别定制总结方式，对话内容会自动附加</div>
+      ${existing || '<p style="color:var(--color-text-tertiary);text-align:center;padding:8px 0;font-size:13px">暂未自定义，使用系统默认模板</p>'}
       ${availCats.length ? `
         <div style="border-top:1px solid var(--color-border);padding-top:14px;margin-top:6px">
-          <div style="font-size:13px;font-weight:600;margin-bottom:8px">添加自定义模板</div>
-          <select id="promptCat" style="width:100%;height:40px;border:1.5px solid var(--color-border);border-radius:var(--radius-lg);padding:0 10px;font-size:13px;margin-bottom:8px;background:var(--color-bg-card);color:var(--color-text-primary)">${catOptions}</select>
-          <textarea id="promptText" rows="5" style="width:100%;border:1.5px solid var(--color-border);border-radius:var(--radius-lg);padding:10px;font-size:13px;font-family:inherit;resize:vertical;outline:none;color:var(--color-text-primary)" placeholder="输入摘要生成指令...&#10;&#10;可用变量：{{ title }} {{ speakers }} {{ duration_min }} {{ category }}&#10;{{ segments }} 为转写内容列表"></textarea>
-          <button class="btn btn-primary btn-block" style="margin-top:8px" onclick="savePrompt()">保存模板</button>
+          <div style="font-size:13px;font-weight:600;margin-bottom:8px">添加模板</div>
+          <div style="font-size:12px;color:var(--color-text-tertiary);margin-bottom:8px">选择适用类别</div>
+          <div id="promptCatChips" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">${chips}</div>
+          <div style="font-size:12px;color:var(--color-text-tertiary);margin-bottom:6px">编写总结指令（输入 <b>@</b> 插入变量）</div>
+          <div style="position:relative">
+            <div class="prompt-editor" id="promptEditor" contenteditable="true"
+                 data-placeholder="例如：请提取关键决策和行动项，按 @参与者 分别列出..." oninput="onPromptInput(event)"></div>
+            <div id="varDropdown" class="var-dropdown hidden"></div>
+          </div>
+          <button class="btn btn-primary btn-block" style="margin-top:10px" onclick="savePrompt()">保存模板</button>
         </div>` : ''}
       <div class="modal-actions" style="margin-top:14px">
         <button class="btn btn-outline btn-block" onclick="closeModal()">关闭</button>
       </div>
     </div>`;
   document.body.appendChild(modal);
+  if (availCats.length) promptSelectedCat = availCats[0];
+}
+
+function editPrompt(category, promptText) {
+  closeModal();
+  promptSelectedCat = category;
+  // 重新打开管理器后填充编辑器（简化：删除旧的再重新添加）
+  showPromptEditor(category, promptText);
+}
+
+async function showPromptEditor(category, promptText) {
+  const catLabel = c => c === '_default' ? '通用' : c;
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.id = 'renameModal';
+  modal.onclick = (e) => { if (e.target === modal) closeModal(); };
+
+  modal.innerHTML = `
+    <div class="modal-sheet" style="max-height:85vh;overflow-y:auto">
+      <div class="modal-title">编辑模板 · ${catLabel(category)}</div>
+      <div style="font-size:12px;color:var(--color-text-tertiary);margin-bottom:8px">输入 <b>@</b> 插入变量，对话内容自动附加</div>
+      <div style="position:relative">
+        <div class="prompt-editor" id="promptEditor" contenteditable="true"
+             data-placeholder="输入总结指令..." oninput="onPromptInput(event)"></div>
+        <div id="varDropdown" class="var-dropdown hidden"></div>
+      </div>
+      <div class="modal-actions" style="margin-top:12px">
+        <button class="btn btn-outline" onclick="closeModal();showPromptManager()">取消</button>
+        <button class="btn btn-primary" onclick="savePromptFor('${category.replace(/'/g,"\\'")}')">保存</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+
+  // 填充已有内容（将占位符转为标签）
+  const editor = document.getElementById('promptEditor');
+  if (editor && promptText) {
+    editor.innerHTML = promptToHtml(promptText);
+  }
+}
+
+// @ 触发变量选择
+function onPromptInput(e) {
+  const editor = document.getElementById('promptEditor');
+  const dropdown = document.getElementById('varDropdown');
+  if (!editor || !dropdown) return;
+
+  const sel = window.getSelection();
+  if (!sel.rangeCount) return;
+
+  const range = sel.getRangeAt(0);
+  const textNode = range.startContainer;
+  if (textNode.nodeType !== 3) { dropdown.classList.add('hidden'); return; }
+
+  const text = textNode.textContent;
+  const cursor = range.startOffset;
+  const atIdx = text.lastIndexOf('@', cursor - 1);
+
+  if (atIdx >= 0 && cursor - atIdx <= 6) {
+    const query = text.substring(atIdx + 1, cursor).toLowerCase();
+    const matches = PROMPT_VARS.filter(v => !query || v.label.toLowerCase().includes(query));
+    if (matches.length) {
+      dropdown.innerHTML = matches.map(v =>
+        `<div class="var-dropdown-item" onmousedown="event.preventDefault();insertVar('${v.key}', '${v.label}', ${atIdx}, ${cursor})">
+          <span class="var-label">${v.label}</span>
+          <span class="var-desc">${v.desc}</span>
+        </div>`
+      ).join('');
+      dropdown.classList.remove('hidden');
+      return;
+    }
+  }
+  dropdown.classList.add('hidden');
+}
+
+function insertVar(key, label, atIdx, cursor) {
+  const editor = document.getElementById('promptEditor');
+  const dropdown = document.getElementById('varDropdown');
+  dropdown?.classList.add('hidden');
+
+  const sel = window.getSelection();
+  if (!sel.rangeCount) return;
+  const range = sel.getRangeAt(0);
+  const textNode = range.startContainer;
+  if (textNode.nodeType !== 3) return;
+
+  // 删除 @query 文本
+  const text = textNode.textContent;
+  const before = text.substring(0, atIdx);
+  const after = text.substring(cursor);
+
+  // 创建标签
+  const chip = document.createElement('span');
+  chip.className = 'var-chip';
+  chip.contentEditable = 'false';
+  chip.dataset.var = key;
+  chip.textContent = label;
+
+  const beforeNode = document.createTextNode(before);
+  const afterNode = document.createTextNode(after || '\u00A0');
+
+  const parent = textNode.parentNode;
+  parent.insertBefore(beforeNode, textNode);
+  parent.insertBefore(chip, textNode);
+  parent.insertBefore(afterNode, textNode);
+  parent.removeChild(textNode);
+
+  // 光标移到标签后
+  const newRange = document.createRange();
+  newRange.setStart(afterNode, afterNode.length > 0 ? 1 : 0);
+  newRange.collapse(true);
+  sel.removeAllRanges();
+  sel.addRange(newRange);
+  editor.focus();
+}
+
+// 编辑器内容 → 存储格式（标签→占位符）
+function editorToPrompt(editor) {
+  let result = '';
+  editor.childNodes.forEach(node => {
+    if (node.nodeType === 3) {
+      result += node.textContent;
+    } else if (node.classList?.contains('var-chip')) {
+      result += node.dataset.var;
+    } else if (node.tagName === 'BR') {
+      result += '\n';
+    } else {
+      result += node.textContent;
+    }
+  });
+  return result.trim();
+}
+
+// 存储格式 → 显示 HTML（占位符→标签）
+function promptToHtml(prompt) {
+  let html = prompt;
+  PROMPT_VARS.forEach(v => {
+    html = html.replaceAll(v.key, `<span class="var-chip" contenteditable="false" data-var="${v.key}">${v.label}</span>`);
+  });
+  return html.replace(/\n/g, '<br>');
+}
+
+// 存储格式 → 纯显示文本（占位符→标签名）
+function promptToDisplay(prompt) {
+  let text = prompt;
+  PROMPT_VARS.forEach(v => { text = text.replaceAll(v.key, `[${v.label}]`); });
+  return text;
 }
 
 async function savePrompt() {
-  const category = document.getElementById('promptCat')?.value;
-  const prompt = document.getElementById('promptText')?.value?.trim();
-  if (!category || !prompt) { showToast('请选择分类并输入模板内容'); return; }
+  const editor = document.getElementById('promptEditor');
+  if (!editor) return;
+  const prompt = editorToPrompt(editor);
+  if (!prompt) { showToast('请输入模板内容'); return; }
+  await api('/api/summary-prompts', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({category: promptSelectedCat, prompt}),
+  });
+  closeModal();
+  showPromptManager();
+  showToast('模板已保存');
+}
+
+async function savePromptFor(category) {
+  const editor = document.getElementById('promptEditor');
+  if (!editor) return;
+  const prompt = editorToPrompt(editor);
+  if (!prompt) { showToast('请输入模板内容'); return; }
   await api('/api/summary-prompts', {
     method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({category, prompt}),

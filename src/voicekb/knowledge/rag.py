@@ -155,23 +155,26 @@ class RAGEngine:
 
     async def summarize_recording(self, recording: Recording,
                                   custom_prompt: str | None = None) -> str:
-        """生成录音摘要。custom_prompt 是用户自定义的摘要模板。"""
+        """生成录音摘要。custom_prompt 是用户自定义的摘要指令。"""
         if not recording.segments:
             return ""
 
-        template_str = custom_prompt or DEFAULT_SUMMARY_PROMPT
-        try:
-            template = Template(template_str)
-            prompt = template.render(
-                title=recording.title or recording.filename,
-                filename=recording.filename,
-                duration_min=f"{recording.duration / 60:.0f}",
-                speakers=", ".join(recording.speakers),
-                segments=recording.segments[:100],
-                category=recording.category,
-            )
-        except Exception:
-            logger.error("自定义摘要模板渲染失败，使用默认", exc_info=True)
+        # 转写内容（始终附加，用户不需要管）
+        transcript = "\n".join(
+            f"**{s.speaker_id}** ({int(s.start)//60}:{int(s.start)%60:02d}): {s.text}"
+            for s in recording.segments[:100]
+        )
+
+        if custom_prompt:
+            # 用户自定义：替换友好占位符，附加转写内容
+            instruction = custom_prompt
+            instruction = instruction.replace("{标题}", recording.title or recording.filename)
+            instruction = instruction.replace("{参与者}", ", ".join(recording.speakers))
+            instruction = instruction.replace("{时长}", f"{recording.duration / 60:.0f}")
+            instruction = instruction.replace("{分类}", recording.category)
+            prompt = f"{instruction}\n\n## 转写内容\n{transcript}"
+        else:
+            # 默认模板
             prompt = Template(DEFAULT_SUMMARY_PROMPT).render(
                 title=recording.title or recording.filename,
                 filename=recording.filename,
