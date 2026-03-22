@@ -360,9 +360,9 @@ a { color: var(--color-primary); text-decoration: none; }
   padding: 14px 16px; background: var(--color-bg-card); border-radius: var(--radius-md);
   margin-bottom: 8px; box-shadow: var(--shadow-sm); cursor: pointer;
 }
-.profile-menu-item svg { width: 20px; height: 20px; color: var(--color-text-secondary); }
+.profile-menu-item svg { width: 20px; height: 20px; color: var(--color-text-secondary); flex-shrink: 0; }
 .profile-menu-item span { flex: 1; font-size: 14px; }
-.profile-menu-item .arrow { color: var(--color-text-tertiary); font-size: 14px; }
+.profile-menu-item .arrow { flex: none; color: var(--color-text-tertiary); font-size: 16px; }
 
 /* ── Skeleton ──────────────────────────────────────────────────────── */
 .skeleton { background: linear-gradient(90deg, #f0f0f0 25%, #e8e8e8 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px; }
@@ -977,6 +977,25 @@ async function checkProcessingRecordings() {
       }
     }
   } catch(e) { /* ignore */ }
+}
+
+/* ── 键盘弹出适配 — 解决输入法首次遮挡输入框 ──────────────────────── */
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', () => {
+    // 键盘弹出时 visualViewport.height 变小
+    const vvh = window.visualViewport.height;
+    const offset = window.innerHeight - vvh;
+    // 调整 view-container 高度，让 sticky 的输入框露出来
+    const container = document.querySelector('.view-container');
+    if (container) {
+      container.style.height = offset > 50 ? `${vvh - 46}px` : '';  // 46 = top-nav height
+    }
+    // 滚动 chat 到底部
+    if (offset > 50) {
+      const msgs = document.getElementById('chatMessages');
+      if (msgs) setTimeout(() => msgs.scrollTop = msgs.scrollHeight, 50);
+    }
+  });
 }
 
 /* ── Init ───────────────────────────────────────────────────────────── */
