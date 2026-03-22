@@ -27,16 +27,17 @@ class OpenAICompatibleLLM:
         self._model = model
         self._api_key = api_key
 
-    async def chat(self, messages: list[Message], max_tokens: int = 2000) -> str:
+    async def chat(self, messages: list[Message], max_tokens: int = 2000,
+                   temperature: float = 0.3) -> str:
         try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
+            async with httpx.AsyncClient(timeout=120.0) as client:
                 resp = await client.post(
                     f"{self._base_url}/chat/completions",
                     json={
                         "model": self._model,
                         "messages": messages,
                         "max_tokens": max_tokens,
-                        "temperature": 0.3,
+                        "temperature": temperature,
                     },
                     headers={"Authorization": f"Bearer {self._api_key}"},
                 )

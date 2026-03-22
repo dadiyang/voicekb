@@ -814,7 +814,10 @@ function renderDetail(rec) {
     </div>
     ${rec.summary ? `
       <div class="summary-card">
-        <h4>会议摘要</h4>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <h4 style="margin:0">会议摘要</h4>
+          <span style="font-size:11px;color:var(--color-primary);cursor:pointer" onclick="openPromptEditor('${rec.category||'_default'}','${rec.id}')">调整总结方式</span>
+        </div>
         <div class="summary-text">${rec.summary.replace(/\n/g, '<br>')}</div>
       </div>` : ''}
     <div style="padding:0 16px;margin-bottom:12px">
@@ -1150,7 +1153,9 @@ async function initProfileView() {
     </div>`;
 }
 
-// ── 变量定义：用户看到的标签 → 内部占位符 ──
+// ── 摘要模板编辑 ────────────────────────────────────────────────────
+// 入口1: 摘要卡片上的"调整总结方式"
+// 入口2: 我的 → 摘要模板（管理总览）
 const PROMPT_VARS = [
   {label: '录音标题', key: '{标题}', desc: '自动生成的标题'},
   {label: '参与者', key: '{参与者}', desc: '所有说话人名称'},
@@ -1158,12 +1163,118 @@ const PROMPT_VARS = [
   {label: '分类', key: '{分类}', desc: '录音类别'},
 ];
 
-let promptSelectedCat = '_default';
+// 从摘要卡片或"我的"页面进入编辑器
+async function openPromptEditor(category, recordingId) {
+  const catLabel = c => c === '_default' ? '通用' : c;
 
+  // 获取当前自定义 prompt（如有）
+  const allPrompts = await api('/api/summary-prompts');
+  const existing = allPrompts.find(p => p.category === category);
+  const customText = existing?.prompt || '';
+  const promptId = existing?.id;
+
+  // 获取平台默认
+  let builtinText = '';
+  try {
+    const resp = await api(`/api/summary-prompts/builtin/${encodeURIComponent(category)}`);
+    builtinText = resp.prompt || '';
+  } catch(e) {}
+
+  const isCustomized = !!customText;
+  const displayText = customText || builtinText;
+
+  // 全屏编辑视图（覆盖在 detail 上）
+  const view = document.getElementById('viewDetail');
+  const prevHtml = view.innerHTML;
+
+  view.innerHTML = `
+    <div style="padding:16px">
+      <div class="detail-back" onclick="restoreDetail()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+        返回录音
+      </div>
+      <div style="font-size:18px;font-weight:700;margin:12px 0 4px">总结方式 · ${catLabel(category)}</div>
+      <div style="font-size:12px;color:var(--color-text-tertiary);margin-bottom:16px">
+        ${isCustomized ? '<span style="color:var(--color-primary)">已自定义</span> · 修改后所有「'+catLabel(category)+'」类录音生效' : '当前使用平台默认 · 修改后所有「'+catLabel(category)+'」类录音生效'}
+      </div>
+
+      <div style="font-size:13px;font-weight:600;margin-bottom:6px">总结指令</div>
+      <div style="font-size:11px;color:var(--color-text-tertiary);margin-bottom:8px">告诉 AI 你希望怎么总结这类录音。输入 @ 可插入变量。对话内容会自动附加。</div>
+      <div style="position:relative">
+        <div class="prompt-editor" id="promptEditor" contenteditable="true"
+             data-placeholder="例如：请提取会议中的关键决策和行动项..." oninput="onPromptInput(event)"></div>
+        <div id="varDropdown" class="var-dropdown hidden"></div>
+      </div>
+
+      <div style="display:flex;gap:8px;margin-top:14px">
+        <button class="btn btn-primary" style="flex:1" onclick="saveAndRegenerate('${category.replace(/'/g,"\\'")}', '${recordingId||''}')">保存${recordingId ? '并重新总结' : ''}</button>
+      </div>
+      ${isCustomized ? `<button class="btn btn-outline btn-block" style="margin-top:8px" onclick="resetAndRestore('${category.replace(/'/g,"\\'")}', ${promptId}, '${recordingId||''}')">重置为平台默认</button>` : ''}
+
+      ${builtinText && isCustomized ? `
+        <details style="margin-top:16px">
+          <summary style="font-size:12px;color:var(--color-text-tertiary);cursor:pointer">查看平台默认模板</summary>
+          <div style="font-size:12px;color:var(--color-text-tertiary);background:var(--color-bg-hover);padding:10px;border-radius:var(--radius-lg);margin-top:6px;white-space:pre-wrap;line-height:1.7">${builtinText}</div>
+        </details>` : ''}
+    </div>`;
+
+  // 记住返回用的 HTML
+  view._prevHtml = prevHtml;
+  view._prevRecId = recordingId;
+
+  // 填充编辑器
+  const editor = document.getElementById('promptEditor');
+  if (editor) editor.innerHTML = promptToHtml(displayText);
+}
+
+function restoreDetail() {
+  const view = document.getElementById('viewDetail');
+  if (view._prevRecId) {
+    openRecording(view._prevRecId);
+  } else if (view._prevHtml) {
+    view.innerHTML = view._prevHtml;
+  }
+}
+
+async function saveAndRegenerate(category, recordingId) {
+  const editor = document.getElementById('promptEditor');
+  if (!editor) return;
+  const prompt = editorToPrompt(editor);
+  if (!prompt) { showToast('请输入总结指令'); return; }
+
+  await api('/api/summary-prompts', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({category, prompt}),
+  });
+  showToast('已保存');
+
+  if (recordingId) {
+    // 重新处理这条录音的摘要
+    await api(`/api/recordings/${recordingId}/reprocess`, {method:'POST'});
+    showToast('正在重新总结...');
+    restoreDetail();
+  } else {
+    restoreDetail();
+  }
+}
+
+async function resetAndRestore(category, promptId, recordingId) {
+  if (promptId) {
+    await api(`/api/summary-prompts/${promptId}/delete`, {method:'POST'});
+  }
+  showToast('已重置为平台默认');
+  if (recordingId) {
+    await api(`/api/recordings/${recordingId}/reprocess`, {method:'POST'});
+    showToast('正在重新总结...');
+    setTimeout(() => openRecording(recordingId), 1500);
+  } else {
+    restoreDetail();
+  }
+}
+
+// ── "我的"页面的摘要模板管理（总览列表）────────────────────────────
 async function showPromptManager() {
   const prompts = await api('/api/summary-prompts');
-  const catPresets = await api('/api/categories');
-  const cats = [{name:'_default'}, ...catPresets];
   const catLabel = c => c === '_default' ? '通用' : c;
 
   const modal = document.createElement('div');
@@ -1171,107 +1282,28 @@ async function showPromptManager() {
   modal.id = 'renameModal';
   modal.onclick = (e) => { if (e.target === modal) closeModal(); };
 
-  // 已有自定义模板
-  const customized = prompts.map(p => {
-    const preview = promptToDisplay(p.prompt).substring(0, 80);
-    return `
-      <div style="border:1px solid var(--color-primary);border-radius:var(--radius-lg);padding:12px;margin-bottom:10px;cursor:pointer;background:rgba(79,70,229,0.02)"
-           onclick="editPrompt('${p.category.replace(/'/g,"\\'")}', ${JSON.stringify(p.prompt).replace(/"/g,'&quot;')})">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-          <div>
-            <span style="font-weight:600;font-size:13px">${catLabel(p.category)}</span>
-            <span style="font-size:10px;color:var(--color-primary);margin-left:6px">已自定义</span>
-          </div>
-          <button class="btn btn-sm btn-outline" style="height:26px;font-size:11px;padding:0 10px" onclick="event.stopPropagation();resetPrompt(${p.id})">重置默认</button>
-        </div>
-        <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.5">${preview}...</div>
-      </div>`;
-  }).join('');
-
-  const existing = customized || '<p style="color:var(--color-text-tertiary);text-align:center;padding:8px 0;font-size:13px">全部使用平台默认模板，效果不满意可自定义</p>';
-
-  // 分类选择 chips
-  const usedCats = new Set(prompts.map(p => p.category));
-  const availCats = cats.map(c => c.name).filter(c => !usedCats.has(c));
-  const chips = availCats.map(c =>
-    `<button class="filter-chip ${promptSelectedCat === c ? 'active' : ''}" onclick="promptSelectedCat='${c}';document.querySelectorAll('#promptCatChips .filter-chip').forEach(b=>b.classList.remove('active'));this.classList.add('active')" style="margin-bottom:6px">${catLabel(c)}</button>`
-  ).join(' ');
+  const list = prompts.length ? prompts.map(p => `
+    <div class="profile-menu-item" onclick="closeModal();openPromptEditor('${p.category.replace(/'/g,"\\'")}')">
+      <div style="flex:1">
+        <div style="font-weight:500;font-size:14px">${catLabel(p.category)}</div>
+        <div style="font-size:11px;color:var(--color-primary)">已自定义</div>
+      </div>
+      <span class="arrow">&rsaquo;</span>
+    </div>`).join('') : '';
 
   modal.innerHTML = `
-    <div class="modal-sheet" style="max-height:85vh;overflow-y:auto">
+    <div class="modal-sheet">
       <div class="modal-title">摘要模板</div>
-      <div style="font-size:12px;color:var(--color-text-tertiary);margin-bottom:14px">为不同类别定制总结方式，对话内容会自动附加</div>
-      ${existing || '<p style="color:var(--color-text-tertiary);text-align:center;padding:8px 0;font-size:13px">暂未自定义，使用系统默认模板</p>'}
-      ${availCats.length ? `
-        <div style="border-top:1px solid var(--color-border);padding-top:14px;margin-top:6px">
-          <div style="font-size:13px;font-weight:600;margin-bottom:8px">添加模板</div>
-          <div style="font-size:12px;color:var(--color-text-tertiary);margin-bottom:8px">选择适用类别</div>
-          <div id="promptCatChips" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">${chips}</div>
-          <div style="font-size:12px;color:var(--color-text-tertiary);margin-bottom:6px">编写总结指令（输入 <b>@</b> 插入变量）</div>
-          <div style="position:relative">
-            <div class="prompt-editor" id="promptEditor" contenteditable="true"
-                 data-placeholder="例如：请提取关键决策和行动项，按 @参与者 分别列出..." oninput="onPromptInput(event)"></div>
-            <div id="varDropdown" class="var-dropdown hidden"></div>
-          </div>
-          <button class="btn btn-primary btn-block" style="margin-top:10px" onclick="savePrompt()">保存模板</button>
-        </div>` : ''}
+      <div style="font-size:12px;color:var(--color-text-tertiary);margin-bottom:14px">
+        在录音详情的摘要旁可以直接调整总结方式。<br>
+        修改后该类别的所有录音都会使用新模板。
+      </div>
+      ${list || '<p style="color:var(--color-text-tertiary);text-align:center;padding:16px 0;font-size:13px">全部使用平台默认模板<br>可在录音摘要旁点「调整总结方式」自定义</p>'}
       <div class="modal-actions" style="margin-top:14px">
         <button class="btn btn-outline btn-block" onclick="closeModal()">关闭</button>
       </div>
     </div>`;
   document.body.appendChild(modal);
-  if (availCats.length) promptSelectedCat = availCats[0];
-}
-
-function editPrompt(category, promptText) {
-  closeModal();
-  promptSelectedCat = category;
-  // 重新打开管理器后填充编辑器（简化：删除旧的再重新添加）
-  showPromptEditor(category, promptText);
-}
-
-async function showPromptEditor(category, promptText) {
-  const catLabel = c => c === '_default' ? '通用' : c;
-
-  // 获取平台默认 prompt 作为参考
-  let builtinPrompt = '';
-  try {
-    const resp = await api(`/api/summary-prompts/builtin/${encodeURIComponent(category)}`);
-    builtinPrompt = resp.prompt || '';
-  } catch(e) {}
-
-  const modal = document.createElement('div');
-  modal.className = 'modal-overlay';
-  modal.id = 'renameModal';
-  modal.onclick = (e) => { if (e.target === modal) closeModal(); };
-
-  modal.innerHTML = `
-    <div class="modal-sheet" style="max-height:85vh;overflow-y:auto">
-      <div class="modal-title">编辑模板 · ${catLabel(category)}</div>
-      ${builtinPrompt ? `
-        <details style="margin-bottom:12px">
-          <summary style="font-size:12px;color:var(--color-primary);cursor:pointer;font-weight:500">查看平台默认模板</summary>
-          <div style="font-size:12px;color:var(--color-text-tertiary);background:var(--color-bg-hover);padding:10px;border-radius:var(--radius-lg);margin-top:6px;white-space:pre-wrap;line-height:1.7">${builtinPrompt}</div>
-          <button class="btn btn-sm btn-outline" style="margin-top:6px" onclick="document.getElementById('promptEditor').innerHTML=promptToHtml(${JSON.stringify(builtinPrompt).replace(/"/g,'&quot;')})">基于默认修改</button>
-        </details>` : ''}
-      <div style="font-size:12px;color:var(--color-text-tertiary);margin-bottom:6px">输入 <b>@</b> 插入变量，对话内容会自动附加</div>
-      <div style="position:relative">
-        <div class="prompt-editor" id="promptEditor" contenteditable="true"
-             data-placeholder="输入总结指令..." oninput="onPromptInput(event)"></div>
-        <div id="varDropdown" class="var-dropdown hidden"></div>
-      </div>
-      <div class="modal-actions" style="margin-top:12px">
-        <button class="btn btn-outline" onclick="closeModal();showPromptManager()">取消</button>
-        <button class="btn btn-primary" onclick="savePromptFor('${category.replace(/'/g,"\\'")}')">保存</button>
-      </div>
-    </div>`;
-  document.body.appendChild(modal);
-
-  // 填充内容：已有自定义 or 空
-  const editor = document.getElementById('promptEditor');
-  if (editor && promptText) {
-    editor.innerHTML = promptToHtml(promptText);
-  }
 }
 
 // 修复：首个占位符退格删不掉
@@ -1425,47 +1457,6 @@ function promptToDisplay(prompt) {
   let text = prompt;
   PROMPT_VARS.forEach(v => { text = text.replaceAll(v.key, `[${v.label}]`); });
   return text;
-}
-
-async function savePrompt() {
-  const editor = document.getElementById('promptEditor');
-  if (!editor) return;
-  const prompt = editorToPrompt(editor);
-  if (!prompt) { showToast('请输入模板内容'); return; }
-  await api('/api/summary-prompts', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({category: promptSelectedCat, prompt}),
-  });
-  closeModal();
-  showPromptManager();
-  showToast('模板已保存');
-}
-
-async function savePromptFor(category) {
-  const editor = document.getElementById('promptEditor');
-  if (!editor) return;
-  const prompt = editorToPrompt(editor);
-  if (!prompt) { showToast('请输入模板内容'); return; }
-  await api('/api/summary-prompts', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({category, prompt}),
-  });
-  closeModal();
-  showPromptManager();
-  showToast('模板已保存');
-}
-
-async function deletePrompt(id) {
-  await api(`/api/summary-prompts/${id}/delete`, {method:'POST'});
-  closeModal();
-  showPromptManager();
-}
-
-async function resetPrompt(id) {
-  await api(`/api/summary-prompts/${id}/delete`, {method:'POST'});
-  showToast('已重置为平台默认');
-  closeModal();
-  showPromptManager();
 }
 
 function showAbout() {
