@@ -184,27 +184,36 @@ class RAGEngine:
             f'直接输出 JSON：{{"title": "...", "category": "..."}}'
         )
 
-        raw = await self._llm.generate(prompt, max_tokens=300)
+        raw = await self._llm.generate(prompt, max_tokens=600)
         raw = raw.strip()
 
         # 解析 JSON
         title = recording.filename
         category = "其他"
         try:
-            # 尝试提取 JSON（可能被包裹在 markdown code block 中）
-            if "```" in raw:
-                raw = raw.split("```")[1].strip()
-                if raw.startswith("json"):
-                    raw = raw[4:].strip()
-            data = json.loads(raw)
+            # 多种方式尝试提取 JSON
+            text = raw
+            if "```" in text:
+                text = text.split("```")[1].strip()
+                if text.startswith("json"):
+                    text = text[4:].strip()
+            # 尝试直接解析
+            try:
+                data = json.loads(text)
+            except json.JSONDecodeError:
+                # 从文本中找 JSON 对象
+                import re as _re
+                m = _re.search(r'\{[^}]+\}', raw)
+                data = json.loads(m.group()) if m else {}
+
             title = data.get("title", "").strip().strip("\"'《》「」") or recording.filename
             category = data.get("category", "").strip().strip("\"'") or "其他"
             if len(title) > 30:
                 title = recording.filename
             if len(category) > 10:
                 category = "其他"
-        except (json.JSONDecodeError, AttributeError):
-            logger.warning("标题+分类 JSON 解析失败: %s", raw[:100])
+        except Exception:
+            logger.warning("标题+分类解析失败: %s", raw[:200])
 
         return title, category
 

@@ -107,9 +107,14 @@ class ProcessingPipeline:
         if final_segments:
             duration = max(s.end for s in final_segments)
 
+        # 从上传路径还原原始文件名（去掉 rec_xxx_ 前缀）
+        raw_name = audio_path.name
+        if raw_name.startswith(recording_id + "_"):
+            raw_name = raw_name[len(recording_id) + 1:]
+
         recording = Recording(
             id=recording_id,
-            filename=audio_path.name,
+            filename=raw_name,
             source="upload",
             duration=duration,
             created_at=datetime.now(),

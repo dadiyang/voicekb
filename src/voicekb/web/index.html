@@ -580,9 +580,12 @@ async function doHomeSearch() {
   const listDiv = document.getElementById('homeRecordingList');
   if (!resultsDiv || !listDiv) return;
 
+  const filterBar = document.querySelector('.filter-bar');
+
   if (!q) {
     resultsDiv.classList.add('hidden');
     listDiv.classList.remove('hidden');
+    if (filterBar) filterBar.classList.remove('hidden');
     return;
   }
 
@@ -590,6 +593,7 @@ async function doHomeSearch() {
     const results = await api(`/api/search?q=${encodeURIComponent(q)}&type=hybrid`);
     listDiv.classList.add('hidden');
     resultsDiv.classList.remove('hidden');
+    if (filterBar) filterBar.classList.add('hidden');
 
     if (results.length === 0) {
       resultsDiv.innerHTML = '<div class="card" style="text-align:center;color:var(--color-text-tertiary)">没有找到相关内容</div>';
@@ -602,7 +606,7 @@ async function doHomeSearch() {
       );
       return `
         <div class="search-result-item" onclick="openRecording('${r.recording_id}')">
-          <div style="font-size:12px;color:var(--color-text-tertiary);margin-bottom:3px">${r.segment.speaker_id}</div>
+          <div style="font-size:12px;color:var(--color-text-tertiary);margin-bottom:3px">${(recordings.find(rc=>rc.id===r.recording_id)?.title) || r.recording_filename} · ${r.segment.speaker_id}</div>
           <div style="font-size:14px;line-height:1.6">${text}</div>
         </div>`;
     }).join('');
@@ -630,11 +634,11 @@ function renderRecordingCard(r) {
         </div>
         <div class="rec-info">
           <div class="rec-name">${r.title || r.filename}</div>
-          <div class="rec-meta">${date} · ${dur} <span class="rec-status ${statusClass}">${statusText}</span></div>
+          <div class="rec-meta">${date} · ${dur}${r.status !== 'completed' ? ` <span class="rec-status ${statusClass}">${statusText}</span>` : ''}</div>
         </div>
       </div>
       <div class="rec-speakers">
-        ${r.category ? `<span class="category-tag">${r.category}</span>` : ''}
+        ${r.category && r.category !== '其他' ? `<span class="category-tag">${r.category}</span>` : ''}
         ${speakers}
       </div>
     </div>`;
@@ -1033,7 +1037,13 @@ async function initChatView() {
   try {
     const history = await api(`/api/chat/history?conversation_id=${chatConversationId}&limit=50`);
     if (history.length === 0) {
-      msgs.innerHTML = `<div class="chat-msg ai"><div class="bubble">\u4f60\u597d\uff01\u6211\u662f VoiceKB \u667a\u80fd\u52a9\u624b\u3002\n\u4f60\u53ef\u4ee5\u8ddf\u6211\u95f2\u804a\uff0c\u4e5f\u53ef\u4ee5\u95ee\u5f55\u97f3\u76f8\u5173\u7684\u95ee\u9898\uff0c\u6bd4\u5982\u201c\u9884\u7b97\u662f\u600e\u4e48\u5206\u914d\u7684\uff1f\u201d</div></div>`;
+      msgs.innerHTML = `
+        <div class="chat-msg ai"><div class="bubble">你好！我是 VoiceKB 智能助手，可以帮你查找和分析录音内容。</div></div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;padding:0 12px;margin-bottom:12px">
+          <button class="filter-chip" onclick="quickAsk(this.textContent)" style="text-align:left">最近的录音讨论了什么？</button>
+          <button class="filter-chip" onclick="quickAsk(this.textContent)" style="text-align:left">有哪些待办事项？</button>
+          <button class="filter-chip" onclick="quickAsk(this.textContent)" style="text-align:left">帮我总结一下所有录音的关键信息</button>
+        </div>`;
     } else {
       history.forEach(m => {
         const cls = m.role === 'user' ? 'user' : 'ai';
@@ -1047,6 +1057,11 @@ async function initChatView() {
   // 延迟滚动，等 DOM 渲染完毕
   requestAnimationFrame(() => { msgs.scrollTop = msgs.scrollHeight; });
   chatInitialized = true;
+}
+
+function quickAsk(question) {
+  const input = document.getElementById('chatInput');
+  if (input) { input.value = question; sendChat(); }
 }
 
 async function sendChat() {
