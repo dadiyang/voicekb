@@ -787,6 +787,14 @@ let chatInitialized = false;
 
 async function initChatView() {
   const view = document.getElementById('viewChat');
+
+  // 已初始化过，只需滚到底部，不重建 DOM
+  if (chatInitialized) {
+    const msgs = document.getElementById('chatMessages');
+    if (msgs) msgs.scrollTop = msgs.scrollHeight;
+    return;
+  }
+
   view.innerHTML = `
     <div class="chat-messages" id="chatMessages"></div>
     <div class="chat-input-bar">
@@ -801,7 +809,7 @@ async function initChatView() {
   try {
     const history = await api(`/api/chat/history?conversation_id=${chatConversationId}&limit=50`);
     if (history.length === 0) {
-      msgs.innerHTML = `<div class="chat-msg ai"><div class="bubble">你好！我是 VoiceKB 智能助手。\n你可以跟我闲聊，也可以问录音相关的问题，比如"预算是怎么分配的？"</div></div>`;
+      msgs.innerHTML = `<div class="chat-msg ai"><div class="bubble">\u4f60\u597d\uff01\u6211\u662f VoiceKB \u667a\u80fd\u52a9\u624b\u3002\n\u4f60\u53ef\u4ee5\u8ddf\u6211\u95f2\u804a\uff0c\u4e5f\u53ef\u4ee5\u95ee\u5f55\u97f3\u76f8\u5173\u7684\u95ee\u9898\uff0c\u6bd4\u5982\u201c\u9884\u7b97\u662f\u600e\u4e48\u5206\u914d\u7684\uff1f\u201d</div></div>`;
     } else {
       history.forEach(m => {
         const cls = m.role === 'user' ? 'user' : 'ai';
@@ -810,7 +818,7 @@ async function initChatView() {
       });
     }
   } catch(e) {
-    msgs.innerHTML = `<div class="chat-msg ai"><div class="bubble">你好！有什么可以帮你的？</div></div>`;
+    msgs.innerHTML = `<div class="chat-msg ai"><div class="bubble">\u4f60\u597d\uff01\u6709\u4ec0\u4e48\u53ef\u4ee5\u5e2e\u4f60\u7684\uff1f</div></div>`;
   }
   msgs.scrollTop = msgs.scrollHeight;
   chatInitialized = true;
