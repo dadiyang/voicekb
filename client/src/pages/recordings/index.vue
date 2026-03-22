@@ -75,10 +75,7 @@
       </view>
     </view>
 
-    <!-- 上传 FAB -->
-    <view class="btn-fab" @click="chooseFile">
-      <text class="fab-icon">+</text>
-    </view>
+    <!-- 上传 FAB（头部已有+按钮，仅在滚动后显示） -->
 
     <!-- Tab Bar -->
 
