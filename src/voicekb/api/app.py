@@ -108,12 +108,12 @@ async def get_audio(recording_id: str):
     from fastapi.responses import FileResponse
 
     # 在 uploads 目录中查找匹配的文件
+    mime_map = {".wav": "audio/wav", ".mp3": "audio/mpeg", ".m4a": "audio/mp4",
+                ".flac": "audio/flac", ".ogg": "audio/ogg", ".aac": "audio/aac"}
     for f in settings.upload_dir.iterdir():
         if f.name.startswith(recording_id):
-            return FileResponse(
-                f, media_type="audio/wav",
-                headers={"Accept-Ranges": "bytes"},
-            )
+            mime = mime_map.get(f.suffix.lower(), "audio/mpeg")
+            return FileResponse(f, media_type=mime)
     return JSONResponse({"error": "音频文件不存在"}, status_code=404)
 
 

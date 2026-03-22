@@ -140,7 +140,7 @@ a { color: var(--primary); text-decoration: none; }
 .upload-zone.dragover { border-color: var(--primary); background: var(--primary-light); }
 .upload-zone svg { width: 48px; height: 48px; color: var(--primary); margin-bottom: 12px; }
 .upload-zone p { font-size: 14px; color: var(--text-secondary); }
-#fileInput { display: none; }
+/* fileInput hidden via inline style */
 
 /* ── Progress ──────────────────────────────────────────────────────── */
 .progress-container { margin: 16px; }
@@ -341,13 +341,13 @@ a { color: var(--primary); text-decoration: none; }
 <div id="viewChat" class="view"></div>
 <div id="viewProfile" class="view"></div>
 
-<!-- FAB Upload Button -->
-<button class="btn btn-primary btn-fab" id="fabUpload" onclick="showUploadModal()">
+<!-- FAB Upload Button — label 直接关联 input，避免 JS .click() 在移动端被拦截 -->
+<label class="btn btn-primary btn-fab" id="fabUpload" for="fileInput">
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-</button>
+</label>
 
 <!-- File input -->
-<input type="file" id="fileInput" accept="audio/*" onchange="handleFileSelect(this.files[0])">
+<input type="file" id="fileInput" accept="audio/*,.wav,.mp3,.m4a,.flac,.ogg,.wma,.aac,.opus" onchange="handleFileSelect(this.files[0])" style="display:none">
 
 <!-- Bottom Tab Bar -->
 <nav class="tab-bar">
@@ -424,7 +424,7 @@ async function loadRecordings() {
           </svg>
           <h3>还没有录音</h3>
           <p>点击右下角 + 上传你的第一段录音</p>
-          <button class="btn btn-primary" onclick="showUploadModal()">上传录音</button>
+          <label class="btn btn-primary" for="fileInput" style="cursor:pointer">上传录音</label>
         </div>`;
       return;
     }
