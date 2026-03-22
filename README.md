@@ -61,30 +61,35 @@ Upload a recording and VoiceKB handles the rest automatically:
 ### Prerequisites
 
 - Python 3.11+
+- Node.js 18+ (for frontend build)
 - 8 GB+ RAM
 - GPU optional (10× faster with GPU; works on CPU too)
 
-### 1. Install
+### 1. Backend
 
 ```bash
 git clone https://github.com/dadiyang/voicekb.git
 cd voicekb
 python3 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
+cp .env.example .env  # edit as needed
 ```
 
-### 2. Configure
-
-Copy the example config and edit as needed:
+### 2. Frontend
 
 ```bash
-cp .env.example .env
+cd client
+npm install
+npx uni build -p h5
+cd ..
 ```
+
+The built H5 files are in `client/dist/build/h5/` and served automatically by the backend.
 
 ### 3. Start
 
 ```bash
-python -m uvicorn voicekb.api.app:app --host 0.0.0.0 --port 8080
+PYTHONPATH=src python -m uvicorn voicekb.api.app:app --host 0.0.0.0 --port 8080
 ```
 
 Open `http://<server-ip>:8080` in your mobile browser to get started.

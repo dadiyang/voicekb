@@ -61,30 +61,35 @@
 ### 前置条件
 
 - Python 3.11+
+- Node.js 18+（构建前端）
 - 8GB+ RAM
 - GPU 可选（有 GPU 处理快 10 倍，无 GPU 也能跑）
 
-### 1. 安装
+### 1. 后端
 
 ```bash
 git clone https://github.com/dadiyang/voicekb.git
 cd voicekb
 python3 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
+cp .env.example .env  # 按需修改
 ```
 
-### 2. 配置
-
-复制示例配置，按需修改：
+### 2. 前端
 
 ```bash
-cp .env.example .env
+cd client
+npm install
+npx uni build -p h5
+cd ..
 ```
+
+构建产物在 `client/dist/build/h5/`，后端会自动加载。
 
 ### 3. 启动
 
 ```bash
-python -m uvicorn voicekb.api.app:app --host 0.0.0.0 --port 8080
+PYTHONPATH=src python -m uvicorn voicekb.api.app:app --host 0.0.0.0 --port 8080
 ```
 
 手机浏览器访问 `http://<服务器IP>:8080`，开始使用。
