@@ -602,7 +602,7 @@ async function doHomeSearch() {
       );
       return `
         <div class="search-result-item" onclick="openRecording('${r.recording_id}')">
-          <div style="font-size:12px;color:var(--color-text-tertiary);margin-bottom:3px">${r.recording_filename} · ${r.segment.speaker_id}</div>
+          <div style="font-size:12px;color:var(--color-text-tertiary);margin-bottom:3px">${r.segment.speaker_id}</div>
           <div style="font-size:14px;line-height:1.6">${text}</div>
         </div>`;
     }).join('');
@@ -1183,9 +1183,14 @@ async function openPromptEditor(category, recordingId) {
   const isCustomized = !!customText;
   const displayText = customText || builtinText;
 
-  // 全屏编辑视图（覆盖在 detail 上）
-  const view = document.getElementById('viewDetail');
+  // 全屏编辑视图
+  const viewId = recordingId ? 'viewDetail' : 'viewProfile';
+  const view = document.getElementById(viewId);
   const prevHtml = view.innerHTML;
+  // 确保此 view 可见
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  view.classList.add('active');
+  document.getElementById('fabUpload').classList.add('hidden');
 
   view.innerHTML = `
     <div style="padding:16px">
@@ -1209,18 +1214,13 @@ async function openPromptEditor(category, recordingId) {
       <div style="display:flex;gap:8px;margin-top:14px">
         <button class="btn btn-primary" style="flex:1" onclick="saveAndRegenerate('${category.replace(/'/g,"\\'")}', '${recordingId||''}')">保存${recordingId ? '并重新总结' : ''}</button>
       </div>
-      ${isCustomized ? `<button class="btn btn-outline btn-block" style="margin-top:8px" onclick="resetAndRestore('${category.replace(/'/g,"\\'")}', ${promptId}, '${recordingId||''}')">重置为平台默认</button>` : ''}
-
-      ${builtinText && isCustomized ? `
-        <details style="margin-top:16px">
-          <summary style="font-size:12px;color:var(--color-text-tertiary);cursor:pointer">查看平台默认模板</summary>
-          <div style="font-size:12px;color:var(--color-text-tertiary);background:var(--color-bg-hover);padding:10px;border-radius:var(--radius-lg);margin-top:6px;white-space:pre-wrap;line-height:1.7">${builtinText}</div>
-        </details>` : ''}
+      ${isCustomized ? `<button class="btn btn-outline btn-block" style="margin-top:8px" onclick="resetToDefault(${promptId})">恢复为平台默认内容</button>` : ''}
     </div>`;
 
-  // 记住返回用的 HTML
+  // 记住上下文
   view._prevHtml = prevHtml;
   view._prevRecId = recordingId;
+  view._promptCategory = category;
 
   // 填充编辑器
   const editor = document.getElementById('promptEditor');
@@ -1228,12 +1228,22 @@ async function openPromptEditor(category, recordingId) {
 }
 
 function restoreDetail() {
-  const view = document.getElementById('viewDetail');
-  if (view._prevRecId) {
-    openRecording(view._prevRecId);
-  } else if (view._prevHtml) {
-    view.innerHTML = view._prevHtml;
+  // 从录音详情进入的 → 回到录音详情
+  const detailView = document.getElementById('viewDetail');
+  if (detailView._prevRecId) {
+    openRecording(detailView._prevRecId);
+    return;
   }
+  // 从"我的"进入的 → 回到"我的"
+  const profileView = document.getElementById('viewProfile');
+  if (profileView._prevHtml) {
+    profileView.innerHTML = profileView._prevHtml;
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    profileView.classList.add('active');
+    profileView._prevHtml = null;
+    return;
+  }
+  backToList();
 }
 
 async function saveAndRegenerate(category, recordingId) {
@@ -1258,47 +1268,56 @@ async function saveAndRegenerate(category, recordingId) {
   }
 }
 
-async function resetAndRestore(category, promptId, recordingId) {
+async function resetToDefault(promptId) {
+  // 删除自定义 → 下次保存时如果内容和默认一样就不会再存 DB
   if (promptId) {
     await api(`/api/summary-prompts/${promptId}/delete`, {method:'POST'});
   }
-  showToast('已重置为平台默认');
-  if (recordingId) {
-    await api(`/api/recordings/${recordingId}/reprocess`, {method:'POST'});
-    showToast('正在重新总结...');
-    setTimeout(() => openRecording(recordingId), 1500);
-  } else {
-    restoreDetail();
+  // 获取默认内容填入编辑器，让用户看到并决定
+  const editor = document.getElementById('promptEditor');
+  const view = document.getElementById('viewDetail');
+  const category = view._promptCategory || '_default';
+  try {
+    const resp = await api(`/api/summary-prompts/builtin/${encodeURIComponent(category)}`);
+    if (editor && resp.prompt) {
+      editor.innerHTML = promptToHtml(resp.prompt);
+      showToast('已恢复为默认内容，可继续修改或直接保存');
+    }
+  } catch(e) {
+    showToast('恢复失败');
   }
 }
 
 // ── "我的"页面的摘要模板管理（总览列表）────────────────────────────
 async function showPromptManager() {
   const prompts = await api('/api/summary-prompts');
-  const catLabel = c => c === '_default' ? '通用' : c;
+  const catPresets = await api('/api/categories');
+  const catLabel = c => c === '_default' ? '通用（默认）' : c;
+  const customMap = {};
+  prompts.forEach(p => customMap[p.category] = true);
+
+  // 显示所有分类，标注哪些已自定义
+  const allCats = ['_default', ...catPresets.map(c => c.name || c)];
 
   const modal = document.createElement('div');
   modal.className = 'modal-overlay';
   modal.id = 'renameModal';
   modal.onclick = (e) => { if (e.target === modal) closeModal(); };
 
-  const list = prompts.length ? prompts.map(p => `
-    <div class="profile-menu-item" onclick="closeModal();openPromptEditor('${p.category.replace(/'/g,"\\'")}')">
+  const list = allCats.map(c => `
+    <div class="profile-menu-item" onclick="closeModal();openPromptEditor('${c.replace(/'/g,"\\'")}')">
       <div style="flex:1">
-        <div style="font-weight:500;font-size:14px">${catLabel(p.category)}</div>
-        <div style="font-size:11px;color:var(--color-primary)">已自定义</div>
+        <div style="font-weight:500;font-size:14px">${catLabel(c)}</div>
+        <div style="font-size:11px;color:${customMap[c] ? 'var(--color-primary)' : 'var(--color-text-tertiary)'}">${customMap[c] ? '已自定义' : '使用平台默认'}</div>
       </div>
       <span class="arrow">&rsaquo;</span>
-    </div>`).join('') : '';
+    </div>`).join('');
 
   modal.innerHTML = `
-    <div class="modal-sheet">
+    <div class="modal-sheet" style="max-height:80vh;overflow-y:auto">
       <div class="modal-title">摘要模板</div>
-      <div style="font-size:12px;color:var(--color-text-tertiary);margin-bottom:14px">
-        在录音详情的摘要旁可以直接调整总结方式。<br>
-        修改后该类别的所有录音都会使用新模板。
-      </div>
-      ${list || '<p style="color:var(--color-text-tertiary);text-align:center;padding:16px 0;font-size:13px">全部使用平台默认模板<br>可在录音摘要旁点「调整总结方式」自定义</p>'}
+      <div style="font-size:12px;color:var(--color-text-tertiary);margin-bottom:14px">点击任意类别查看或修改其总结方式</div>
+      ${list}
       <div class="modal-actions" style="margin-top:14px">
         <button class="btn btn-outline btn-block" onclick="closeModal()">关闭</button>
       </div>
