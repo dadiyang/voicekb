@@ -700,7 +700,8 @@ function goBack() { uni.navigateBack() }
 .nav-bar {
   display: flex; justify-content: space-between; align-items: center;
   padding: $spacing-md $spacing-lg; background: $color-bg-card;
-  border-bottom: 1rpx solid $color-border; position: relative; z-index: 60;
+  border-bottom: 1rpx solid $color-border;
+  position: sticky; top: 0; z-index: 60;
 }
 .nav-back { display: flex; align-items: center; gap: $spacing-xs; font-size: $font-base; color: $color-primary; }
 .nav-back-icon { font-size: 36rpx; }

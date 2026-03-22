@@ -339,12 +339,11 @@ onShow(loadRecordings)
 <style lang="scss" scoped>
 .page { min-height: #{"calc(100vh - var(--window-top, 0px))"}; background: $color-bg-page; padding-bottom: 140rpx; }
 
-/* ===== 品牌头部 — 轻渐变 ===== */
+/* ===== 品牌头部 — 固定顶部 ===== */
 .brand-header {
+  position: sticky; top: 0; z-index: 50;
   background: linear-gradient(135deg, #6366F1 0%, #818CF8 100%);
   padding: $spacing-lg $spacing-lg $spacing-md;
-  margin-bottom: $spacing-md;
-  
 }
 .brand-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: $spacing-lg; }
 .brand-title { font-size: 40rpx; font-weight: 800; color: #fff; display: block; letter-spacing: -1rpx; }
@@ -368,7 +367,10 @@ onShow(loadRecordings)
 // #endif
 
 /* ===== Filter Bar — 分类筛选 ===== */
-.filter-bar { white-space: nowrap; padding: 0 $spacing-lg $spacing-md; }
+.filter-bar {
+  white-space: nowrap; padding: $spacing-sm $spacing-lg $spacing-md;
+  position: sticky; top: 0; z-index: 40; background: $color-bg-page;
+}
 .filter-chip {
   display: inline-block; height: 60rpx; line-height: 60rpx;
   padding: 0 28rpx; border-radius: $radius-full;
