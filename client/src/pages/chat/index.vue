@@ -43,14 +43,12 @@
       </view>
     </view>
 
-    <TabBar current="chat" />
   </view>
 </template>
 
 <script setup>
 import { ref, nextTick, onMounted } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
-import TabBar from '@/components/TabBar.vue'
 import { chatApi, speakerApi } from '@/api'
 import { renderMarkdown } from '@/utils/format'
 
@@ -151,7 +149,7 @@ onShow(() => { if (initialized) scrollToBottom() })
   position: fixed;
   top: 44px; /* 导航栏 */
   left: 0; right: 0;
-  bottom: 110rpx; /* tabBar */
+  bottom: 50px; /* native tabBar */
   background: $color-bg-page;
   display: flex;
   flex-direction: column;

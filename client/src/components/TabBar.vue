@@ -26,7 +26,7 @@ function go(page) {
     chat: '/pages/chat/index',
     profile: '/pages/profile/index',
   }
-  uni.redirectTo({ url: routes[page] })
+  uni.switchTab({ url: routes[page] })
 }
 </script>
 

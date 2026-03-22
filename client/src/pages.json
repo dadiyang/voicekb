@@ -5,8 +5,22 @@
     {"path": "pages/chat/index", "style": {"navigationBarTitleText": "AI 问答"}},
     {"path": "pages/profile/index", "style": {"navigationBarTitleText": "我的"}},
     {"path": "pages/speakers/index", "style": {"navigationBarTitleText": "说话人管理"}},
-    {"path": "pages/vocabulary/index", "style": {"navigationBarTitleText": "术语管理"}}
+    {"path": "pages/vocabulary/index", "style": {"navigationBarTitleText": "术语管理"}},
+    {"path": "pages/prompts/index", "style": {"navigationBarTitleText": "摘要模板"}},
+    {"path": "pages/about/index", "style": {"navigationBarTitleText": "关于 VoiceKB"}}
   ],
+  "tabBar": {
+    "color": "#86909C",
+    "selectedColor": "#4F46E5",
+    "backgroundColor": "#FFFFFF",
+    "borderStyle": "white",
+    "height": "50px",
+    "list": [
+      {"pagePath": "pages/recordings/index", "text": "录音", "iconPath": "static/icons/mic.png", "selectedIconPath": "static/icons/mic-active.png"},
+      {"pagePath": "pages/chat/index", "text": "问答", "iconPath": "static/icons/chat.png", "selectedIconPath": "static/icons/chat-active.png"},
+      {"pagePath": "pages/profile/index", "text": "我的", "iconPath": "static/icons/user.png", "selectedIconPath": "static/icons/user-active.png"}
+    ]
+  },
   "globalStyle": {
     "navigationBarTextStyle": "black",
     "navigationBarTitleText": "VoiceKB",

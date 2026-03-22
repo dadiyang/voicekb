@@ -49,14 +49,12 @@
 
     <text class="version">VoiceKB v0.1.0 · MIT License</text>
 
-    <TabBar current="profile" />
   </view>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
-import TabBar from '@/components/TabBar.vue'
 import { recordingApi, speakerApi, vocabApi, promptApi, categoryApi } from '@/api'
 
 const stats = ref({ recordings: 0, speakers: 0, minutes: 0 })
@@ -173,6 +171,10 @@ function _old_manageVocab() {
 
 /* ── 摘要模板管理 ── */
 function managePrompts() {
+  uni.navigateTo({ url: '/pages/prompts/index' })
+}
+
+function _old_managePrompts() {
   Promise.all([promptApi.list(), categoryApi.list()]).then(([prompts, cats]) => {
     const allCats = ['_default', ...cats.map(c => c.name || c)]
     const customMap = {}
@@ -219,6 +221,10 @@ function managePrompts() {
 
 /* ── 关于 VoiceKB ── */
 function showAbout() {
+  uni.navigateTo({ url: '/pages/about/index' })
+}
+
+function _old_showAbout() {
   uni.showModal({
     title: 'VoiceKB v0.1.0',
     content: '开源个人录音知识库\n\n把日常录音变成可搜索、可对话的个人知识库。\n\n核心能力\n\n• 智能语音识别，自动区分说话人\n• 跨录音声纹识别，同一人自动关联\n• 关键词 + 语义双引擎搜索\n• AI 智能问答，基于录音内容回答问题\n• 完全本地部署，数据不出你的服务器\n\n技术栈：faster-whisper · resemblyzer · ChromaDB · Qwen3\n协议：MIT License',

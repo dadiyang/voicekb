@@ -68,7 +68,6 @@
     </view>
 
     <!-- Tab Bar -->
-    <TabBar current="recordings" />
 
     <!-- 处理进度 -->
     <view v-if="processingId" class="progress-overlay">
@@ -86,7 +85,6 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
-import TabBar from '@/components/TabBar.vue'
 import { recordingApi, searchApi, categoryApi, uploadAudio } from '@/api'
 import { relativeTime, friendlyDuration } from '@/utils/format'
 
