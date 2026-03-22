@@ -29,22 +29,22 @@
     <view class="profile-menu-item" @click="manageSpeakers">
       <text class="ti ti-users menu-icon"></text>
       <text class="menu-text">说话人管理</text>
-      <text class="menu-arrow">&rsaquo;</text>
+      <text class="ti ti-chevron-right menu-arrow"></text>
     </view>
     <view class="profile-menu-item" @click="manageVocab">
       <text class="ti ti-vocabulary menu-icon"></text>
       <text class="menu-text">术语管理</text>
-      <text class="menu-arrow">&rsaquo;</text>
+      <text class="ti ti-chevron-right menu-arrow"></text>
     </view>
     <view class="profile-menu-item" @click="managePrompts">
       <text class="ti ti-file-text menu-icon"></text>
       <text class="menu-text">摘要模板</text>
-      <text class="menu-arrow">&rsaquo;</text>
+      <text class="ti ti-chevron-right menu-arrow"></text>
     </view>
     <view class="profile-menu-item" @click="showAbout">
       <text class="ti ti-info-circle menu-icon"></text>
       <text class="menu-text">关于 VoiceKB</text>
-      <text class="menu-arrow">&rsaquo;</text>
+      <text class="ti ti-chevron-right menu-arrow"></text>
     </view>
 
     <text class="version">VoiceKB v0.1.0 · MIT License</text>

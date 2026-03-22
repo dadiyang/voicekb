@@ -3,10 +3,12 @@
     <!-- 自定义导航栏 -->
     <view class="nav-bar" :style="{paddingTop: statusBarHeight + 'px'}">
       <view class="nav-back" @click="goBack">
-        <text class="nav-back-icon">&lt;</text>
+        <text class="ti ti-arrow-left nav-back-icon"></text>
         <text>返回</text>
       </view>
-      <view class="nav-more" @click="showRecordingMenu" v-if="recording && recording.status !== 'processing'">···</view>
+      <view class="nav-more" @click="showRecordingMenu" v-if="recording && recording.status !== 'processing'">
+        <text class="ti ti-dots"></text>
+      </view>
     </view>
 
     <!-- 处理中 -->
@@ -700,7 +702,7 @@ function goBack() { uni.navigateBack() }
   border-bottom: 1rpx solid $color-border; position: relative; z-index: 60;
 }
 .nav-back { display: flex; align-items: center; gap: $spacing-xs; font-size: $font-base; color: $color-primary; }
-.nav-back-icon { font-size: $font-lg; }
+.nav-back-icon { font-size: 36rpx; }
 .nav-more { font-size: 40rpx; color: $color-text-tertiary; padding: 0 $spacing-md; }
 
 /* ── 详情头部 ─────────────────────────────────────────── */
