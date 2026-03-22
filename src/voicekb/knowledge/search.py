@@ -106,27 +106,23 @@ class SearchEngine:
             return []
 
     def hybrid_search(self, query: str, limit: int = 20) -> list[SearchResult]:
-        """混合搜索：关键词 + 语义，去重合并。"""
+        """混合搜索：关键词 + 语义，去重合并。
+
+        去重逻辑：按 recording_id + 时间段去重（避免原文/流畅版文本不同导致重复）。
+        同一段话被两个引擎命中时，取较高分数。
+        """
         kw_results = self.keyword_search(query, limit)
         sem_results = self.semantic_search(query, limit)
 
-        # 合并去重（按 recording_id + text 去重）
-        seen = set()
-        merged: list[SearchResult] = []
+        # 按 recording_id + start_time 去重（时间段比文本内容更可靠）
+        best: dict[str, SearchResult] = {}
 
-        for r in sem_results:  # 语义结果优先
-            key = (r.recording_id, r.segment.text[:50])
-            if key not in seen:
-                seen.add(key)
-                merged.append(r)
+        for r in kw_results + sem_results:
+            key = f"{r.recording_id}_{r.segment.start:.1f}"
+            if key not in best or r.score > best[key].score:
+                best[key] = r
 
-        for r in kw_results:
-            key = (r.recording_id, r.segment.text[:50])
-            if key not in seen:
-                seen.add(key)
-                merged.append(r)
-
-        # 过滤低质量语义结果，按 score 排序
+        merged = list(best.values())
         merged = [r for r in merged if r.score >= 0.52]
         merged.sort(key=lambda x: x.score, reverse=True)
         return merged[:limit]
