@@ -47,6 +47,12 @@ class Diarizer:
         wav = preprocess_wav(audio_path)
         sr = 16000  # resemblyzer 预处理后固定 16kHz
 
+        # 长录音自动增大步长，控制嵌入总数在 2000 以内
+        audio_duration = len(wav) / sr
+        if audio_duration > 1800:  # > 30 分钟
+            step_sec = max(step_sec, audio_duration / 1500)
+            logger.info("长录音 (%.0f分钟)，步长调整为 %.1fs", audio_duration / 60, step_sec)
+
         window_samples = int(window_sec * sr)
         step_samples = int(step_sec * sr)
 

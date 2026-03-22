@@ -311,7 +311,12 @@ a { color: var(--color-primary); text-decoration: none; }
   border-radius: var(--radius-xl); font-size: 14px; line-height: 1.6; text-align: left;
 }
 .chat-msg.user .bubble { background: linear-gradient(180deg, #6366F1, #4F46E5); color: #fff; border-bottom-right-radius: var(--radius-sm); }
-.chat-msg.ai .bubble { background: var(--color-bg-card); border: 1px solid var(--color-border); border-bottom-left-radius: var(--radius-sm); box-shadow: var(--shadow-sm); }
+.chat-msg.ai .bubble { background: var(--color-bg-card); border: 1px solid var(--color-border); border-bottom-left-radius: var(--radius-sm); box-shadow: var(--shadow-sm); line-height: 1.8; }
+.chat-msg.ai .bubble p, .chat-msg.ai .bubble br+br { margin-top: 8px; }
+.chat-msg.ai .bubble strong, .chat-msg.ai .bubble b { color: var(--color-text-primary); }
+.chat-msg.ai .bubble ul, .chat-msg.ai .bubble ol { padding-left: 18px; margin: 6px 0; }
+.chat-msg.ai .bubble li { margin-bottom: 4px; }
+.chat-msg.ai .bubble hr { border: none; border-top: 1px solid var(--color-border); margin: 10px 0; }
 .chat-msg.ai .bubble .source-link { font-size: 12px; color: var(--color-primary); margin-top: 6px; display: block; }
 .chat-input-bar {
   position: sticky; bottom: 0;
@@ -843,10 +848,11 @@ function renderDetail(rec) {
           <h4 style="margin:0">会议摘要</h4>
           <span style="font-size:11px;color:var(--color-primary);cursor:pointer" onclick="openPromptEditor('${rec.category||'_default'}','${rec.id}')">调整总结方式</span>
         </div>
-        <div class="summary-text">${rec.summary.replace(/\n/g, '<br>')}</div>
+        <div class="summary-text">${formatMarkdown(rec.summary)}</div>
       </div>` : ''}
     <div style="padding:0 16px;margin-bottom:12px">
       <div style="font-size:15px;font-weight:600">对话记录</div>
+      ${(rec.speakers||[]).some(s => s.startsWith('说话人')) ? '<div style="font-size:11px;color:var(--color-text-tertiary);margin-top:4px">点击说话人标签可标注真实姓名</div>' : ''}
     </div>
     <div class="transcript">${segments}</div>`;
 
@@ -1120,7 +1126,7 @@ async function sendChat() {
 
     document.getElementById('chatLoading')?.remove();
 
-    let html = result.answer.replace(/\n/g, '<br>');
+    let html = formatMarkdown(result.answer);
     if (result.sources?.length) {
       html += '<br><span class="source-link">来源: ';
       const seen = new Set();
@@ -1763,6 +1769,19 @@ function friendlyDuration(seconds) {
   const s = Math.floor(seconds % 60);
   if (m === 0) return `${s}秒`;
   return s > 0 ? `${m}分${s}秒` : `${m}分钟`;
+}
+
+/* ── Markdown 格式化 ──────────────────────────────────────────────── */
+function formatMarkdown(text) {
+  return text
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/###\s*(.+)/g, '<div style="font-weight:600;margin:8px 0 4px;font-size:13px">$1</div>')
+    .replace(/---/g, '<hr>')
+    .replace(/^- (.+)/gm, '<li>$1</li>')
+    .replace(/^\d+\.\s+(.+)/gm, '<li>$1</li>')
+    .replace(/(<li>.*<\/li>\n?)+/g, m => '<ul style="padding-left:16px;margin:4px 0">' + m + '</ul>')
+    .replace(/\n\n/g, '<br><br>')
+    .replace(/\n/g, '<br>');
 }
 
 /* ── Init ───────────────────────────────────────────────────────────── */
