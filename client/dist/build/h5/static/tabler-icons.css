@@ -1,0 +1,35 @@
+@font-face {
+  font-family: "tabler-icons";
+  font-style: normal;
+  font-weight: 400;
+  src: url('/static/fonts/tabler-icons.woff2') format('woff2');
+}
+.ti {
+  font-family: "tabler-icons" !important;
+  speak: none;
+  font-style: normal;
+  font-weight: normal;
+  font-variant: normal;
+  text-transform: none;
+  line-height: 1;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+.ti-microphone:before { content: "\eae8"; }
+.ti-message-circle:before { content: "\eaed"; }
+.ti-user:before { content: "\eb4d"; }
+.ti-users:before { content: "\eb50"; }
+.ti-search:before { content: "\eb1c"; }
+.ti-settings:before { content: "\eb20"; }
+.ti-player-play:before { content: "\eb0f"; }
+.ti-player-pause:before { content: "\eb0d"; }
+.ti-arrow-left:before { content: "\ea60"; }
+.ti-dots:before { content: "\ea95"; }
+.ti-trash:before { content: "\eb41"; }
+.ti-refresh:before { content: "\eb13"; }
+.ti-file-text:before { content: "\ea9f"; }
+.ti-info-circle:before { content: "\eac8"; }
+.ti-clipboard-list:before { content: "\ea6d"; }
+.ti-send:before { content: "\eb1b"; }
+.ti-plus:before { content: "\eb0b"; }
+.ti-chevron-right:before { content: "\ea61"; }

@@ -31,7 +31,7 @@
             @click="goDetail(r.id)" @longpress="showMenu(r.id)">
         <view class="rec-header">
           <view class="rec-icon">
-            <text class="icon-mic">🎙</text>
+            <text class="ti ti-microphone" style="font-size:40rpx;color:#4F46E5"></text>
           </view>
           <view class="rec-info">
             <text class="rec-name">{{ r.title || r.filename }}</text>
@@ -66,6 +66,9 @@
       <text class="fab-icon">+</text>
     </view>
 
+    <!-- Tab Bar -->
+    <TabBar current="recordings" />
+
     <!-- 处理进度 -->
     <view v-if="processingId" class="progress-overlay">
       <view class="card" style="margin: 40rpx">
@@ -80,6 +83,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
+import TabBar from '@/components/TabBar.vue'
 import { recordingApi, searchApi, uploadAudio } from '@/api'
 import { relativeTime, friendlyDuration } from '@/utils/format'
 
@@ -260,7 +264,7 @@ onShow(loadRecordings)
 </script>
 
 <style lang="scss" scoped>
-.page { min-height: #{"calc(100vh - var(--window-top, 0px))"}; background: $color-bg-page; }
+.page { min-height: #{"calc(100vh - var(--window-top, 0px))"}; background: $color-bg-page; padding-bottom: 140rpx; }
 .search-bar { padding: $spacing-md $spacing-lg; }
 .search-input {
   width: 100%; height: 88rpx; padding: 0 $spacing-lg;
@@ -286,7 +290,7 @@ onShow(loadRecordings)
 .rec-icon {
   width: 88rpx; height: 88rpx; border-radius: $radius-lg;
   background: $color-primary-light; display: flex; align-items: center; justify-content: center;
-  .icon-mic { font-size: 40rpx; }
+  .icon-img { width: 44rpx; height: 44rpx; }
 }
 .rec-info { flex: 1; min-width: 0; }
 .rec-name { font-size: $font-md; font-weight: 600; color: $color-text-primary; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }

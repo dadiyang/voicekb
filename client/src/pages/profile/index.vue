@@ -1,5 +1,6 @@
 <template>
   <view class="page">
+    <TabBar current="profile" />
     <!-- 用户信息 -->
     <view class="profile-header">
       <view class="avatar">V</view>
@@ -18,16 +19,16 @@
 
     <!-- 菜单 -->
     <view class="menu-item" @click="manageSpeakers">
-      <text class="menu-icon">👥</text><text class="menu-text">说话人管理</text><text class="menu-arrow">›</text>
+      <text class="ti ti-users menu-icon"></text><text class="menu-text">说话人管理</text><text class="ti ti-chevron-right menu-arrow"></text>
     </view>
     <view class="menu-item" @click="manageVocab">
-      <text class="menu-icon">📖</text><text class="menu-text">术语管理</text><text class="menu-arrow">›</text>
+      <text class="ti ti-file-text menu-icon"></text><text class="menu-text">术语管理</text><text class="ti ti-chevron-right menu-arrow"></text>
     </view>
     <view class="menu-item" @click="managePrompts">
-      <text class="menu-icon">📋</text><text class="menu-text">摘要模板</text><text class="menu-arrow">›</text>
+      <text class="ti ti-clipboard-list menu-icon"></text><text class="menu-text">摘要模板</text><text class="ti ti-chevron-right menu-arrow"></text>
     </view>
     <view class="menu-item" @click="showAbout">
-      <text class="menu-icon">ℹ️</text><text class="menu-text">关于 VoiceKB</text><text class="menu-arrow">›</text>
+      <text class="ti ti-info-circle menu-icon"></text><text class="menu-text">关于 VoiceKB</text><text class="ti ti-chevron-right menu-arrow"></text>
     </view>
 
     <text class="version">VoiceKB v0.1.0 · MIT License</text>
@@ -37,6 +38,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
+import TabBar from '@/components/TabBar.vue'
 import { recordingApi, speakerApi, vocabApi, promptApi, categoryApi } from '@/api'
 
 const stats = ref({ recordings: 0, speakers: 0, minutes: 0 })
@@ -167,7 +169,7 @@ onShow(loadStats)
 </script>
 
 <style lang="scss" scoped>
-.page { min-height: #{"calc(100vh - var(--window-top, 0px))"}; background: $color-bg-page; padding: $spacing-lg; }
+.page { min-height: #{"calc(100vh - var(--window-top, 0px))"}; background: $color-bg-page; padding: $spacing-lg; padding-bottom: 140rpx; }
 
 .profile-header { display: flex; align-items: center; gap: $spacing-lg; margin-bottom: $spacing-xxl; }
 .avatar {
@@ -192,9 +194,9 @@ onShow(loadStats)
   padding: $spacing-lg; background: $color-bg-card; border-radius: $radius-lg;
   margin-bottom: $spacing-md; box-shadow: $shadow-sm;
 }
-.menu-icon { font-size: 36rpx; flex-shrink: 0; }
+.menu-icon { font-size: 36rpx; color: $color-text-secondary; flex-shrink: 0; }
 .menu-text { flex: 1; font-size: $font-base; }
-.menu-arrow { color: $color-text-disabled; font-size: $font-lg; }
+.menu-arrow { color: $color-text-disabled; font-size: 28rpx; }
 
 .version { display: block; text-align: center; margin-top: $spacing-xxl; font-size: $font-xs; color: $color-text-disabled; }
 </style>

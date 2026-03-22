@@ -1,5 +1,6 @@
 <template>
   <view class="page flex-col">
+    <TabBar current="chat" />
     <!-- 清除按钮 -->
     <view class="chat-topbar">
       <text class="chat-clear" @click="clearChat">清除对话</text>
@@ -39,6 +40,7 @@
 <script setup>
 import { ref, nextTick, onMounted } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
+import TabBar from '@/components/TabBar.vue'
 import { chatApi, speakerApi } from '@/api'
 import { renderMarkdown } from '@/utils/format'
 
@@ -127,13 +129,17 @@ onShow(() => { if (initialized) scrollToBottom() })
 </script>
 
 <style lang="scss" scoped>
-.page { min-height: #{"calc(100vh - var(--window-top, 0px))"}; background: $color-bg-page; }
+.page {
+  /* 减去导航栏 + 自定义 tabBar(110rpx) */
+  height: #{"calc(100vh - var(--window-top, 0px) - 110rpx)"};
+  background: $color-bg-page; overflow: hidden;
+}
 .flex-col { display: flex; flex-direction: column; }
 
-.chat-topbar { display: flex; justify-content: flex-end; padding: $spacing-sm $spacing-lg; }
+.chat-topbar { display: flex; justify-content: flex-end; padding: $spacing-sm $spacing-lg; flex-shrink: 0; }
 .chat-clear { font-size: $font-xs; color: $color-text-tertiary; }
 
-.chat-messages { flex: 1; padding: $spacing-md; }
+.chat-messages { flex: 1; padding: $spacing-md; min-height: 0; /* 关键：让 flex 子项可以缩小 */ }
 .chat-msg { margin-bottom: $spacing-lg; }
 .chat-msg.user { display: flex; justify-content: flex-end; }
 .bubble {
