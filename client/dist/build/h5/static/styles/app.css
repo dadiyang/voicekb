@@ -31,9 +31,7 @@
   --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html, body {
-  height: 100%; overflow: hidden; /* 禁止 body 滚动，防止 Chrome 地址栏跳动 */
-}
+/* uni-app 管理页面滚动，不需要 body overflow:hidden */
 body {
   font-family: -apple-system, "PingFang SC", "Helvetica Neue", Arial, sans-serif;
   background: var(--color-bg-page); color: var(--color-text-primary);
@@ -42,7 +40,7 @@ body {
   -moz-osx-font-smoothing: grayscale;
   -webkit-text-size-adjust: 100%;
   -webkit-tap-highlight-color: transparent;
-  display: flex; flex-direction: column;
+  /* 不设 overflow 和 display:flex，让 uni-app 管理页面布局 */
 }
 a { color: var(--color-primary); text-decoration: none; }
 
@@ -72,14 +70,9 @@ a { color: var(--color-primary); text-decoration: none; }
 .tab-item.active { color: var(--color-primary); font-weight: 600; }
 .tab-item svg { width: 22px; height: 22px; margin-bottom: 2px; }
 
-/* ===== View — 内部滚动容器，防止 Chrome 地址栏跳动 ===== */
-.view-container {
-  flex: 1; overflow: hidden; position: relative;
-}
+/* ===== View — uni-app 不需要旧版的滚动容器 hack ===== */
 .view {
-  display: none; padding: 8px 0;
-  position: absolute; inset: 0;
-  overflow-y: auto; overflow-x: hidden;
+  padding: 8px 0;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain; /* 防止滚动穿透和下拉刷新 */
   padding-bottom: calc(56px + var(--safe-bottom));

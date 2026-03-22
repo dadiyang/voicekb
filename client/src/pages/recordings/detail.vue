@@ -8,6 +8,7 @@
       </view>
       <view class="nav-more" @click="showRecordingMenu" v-if="recording && recording.status !== 'processing'">
         <text class="ti ti-dots"></text>
+        <text class="nav-more-text">操作</text>
       </view>
     </view>
 
@@ -703,7 +704,12 @@ function goBack() { uni.navigateBack() }
 }
 .nav-back { display: flex; align-items: center; gap: $spacing-xs; font-size: $font-base; color: $color-primary; }
 .nav-back-icon { font-size: 36rpx; }
-.nav-more { font-size: 40rpx; color: $color-text-tertiary; padding: 0 $spacing-md; }
+.nav-more {
+  display: flex; align-items: center; gap: 6rpx;
+  font-size: 26rpx; color: $color-primary; padding: 8rpx 20rpx;
+  border: 2rpx solid $color-primary; border-radius: $radius-full;
+}
+.nav-more-text { font-size: 24rpx; }
 
 /* ── 详情头部 ─────────────────────────────────────────── */
 .detail-header { padding: $spacing-lg; }
