@@ -182,7 +182,7 @@ async def _process_recording(recording_id: str, audio_path: Path) -> None:
         )
 
         # LLM 第 1 步：标题 + 分类（合并为 1 次调用）
-        _progress[recording_id] = {"step": "分析内容", "percent": 90}
+        _progress[recording_id] = {"step": "正在分析内容...", "percent": 90}
         presets = _store.get_category_presets()
         existing_cats = [p["name"] for p in presets]
         title, category = await _rag.classify_and_title(recording, existing_cats)
@@ -190,7 +190,7 @@ async def _process_recording(recording_id: str, audio_path: Path) -> None:
         recording.category = category
 
         # LLM 第 2 步：用分类专属 prompt 生成摘要
-        _progress[recording_id] = {"step": "生成摘要", "percent": 94}
+        _progress[recording_id] = {"step": "正在写总结...", "percent": 94}
         custom_prompt = _store.get_summary_prompt(category)
         summary = await _rag.summarize_recording(recording, custom_prompt=custom_prompt)
         recording.summary = summary

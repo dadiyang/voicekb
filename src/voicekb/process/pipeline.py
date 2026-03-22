@@ -68,10 +68,10 @@ class ProcessingPipeline:
                 progress_cb(step, pct)
             logger.info("[%s] %s: %d%%", recording_id, step, pct)
 
-        _progress("开始处理", 0)
+        _progress("准备中", 0)
 
         # Step 1: ASR（加载自定义术语提高识别准确率）
-        _progress("语音识别", 5)
+        _progress("正在听录音...", 5)
         hotwords: list[str] = []
         try:
             from voicekb.knowledge.store import RecordingStore
@@ -83,24 +83,24 @@ class ProcessingPipeline:
         except Exception:
             pass
         asr_segments = self._asr.transcribe(audio_path, hotwords=hotwords or None)
-        _progress("语音识别完成", 40)
+        _progress("录音转文字完成", 40)
 
         # Step 2: 声纹分离
-        _progress("声纹分离", 45)
+        _progress("识别说话人...", 45)
         speaker_segments = self._diarizer.diarize(audio_path)
-        _progress("声纹分离完成", 70)
+        _progress("说话人识别完成", 70)
 
         # Step 3: 对齐 — 将声纹标签分配给 ASR 片段
-        _progress("对齐标签", 75)
+        _progress("整理对话...", 75)
         labeled_segments = self._align_segments(asr_segments, speaker_segments)
-        _progress("对齐完成", 80)
+        _progress("整理完成", 80)
 
         # Step 4: 匹配/注册说话人
-        _progress("匹配说话人", 85)
+        _progress("匹配已知说话人...", 85)
         final_segments, speakers = self._match_speakers(
             labeled_segments, speaker_segments, recording_id,
         )
-        _progress("匹配完成", 95)
+        _progress("快完成了...", 95)
 
         # 计算时长
         duration = 0.0

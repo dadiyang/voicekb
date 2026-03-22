@@ -302,7 +302,8 @@ a { color: var(--color-primary); text-decoration: none; }
 .search-highlight { background: #FFF3E0; padding: 1px 3px; border-radius: 2px; font-weight: 500; }
 
 /* ===== Chat ===== */
-.chat-messages { padding: 12px; min-height: calc(100vh - 220px); }
+.chat-messages { padding: 12px; flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+#viewChat.active { display: flex; flex-direction: column; }
 .chat-msg { margin-bottom: 14px; }
 .chat-msg.user { text-align: right; }
 .chat-msg .bubble {
@@ -589,11 +590,14 @@ async function doHomeSearch() {
     return;
   }
 
+  // 显示加载中
+  listDiv.classList.add('hidden');
+  resultsDiv.classList.remove('hidden');
+  resultsDiv.innerHTML = '<div style="text-align:center;padding:20px;color:var(--color-text-tertiary)">搜索中...</div>';
+  if (filterBar) filterBar.classList.add('hidden');
+
   try {
     const results = await api(`/api/search?q=${encodeURIComponent(q)}&type=hybrid`);
-    listDiv.classList.add('hidden');
-    resultsDiv.classList.remove('hidden');
-    if (filterBar) filterBar.classList.add('hidden');
 
     if (results.length === 0) {
       resultsDiv.innerHTML = '<div class="card" style="text-align:center;color:var(--color-text-tertiary)">没有找到相关内容</div>';
@@ -617,14 +621,14 @@ async function doHomeSearch() {
 }
 
 function renderRecordingCard(r) {
-  const date = new Date(r.created_at).toLocaleDateString('zh-CN', {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
-  const dur = r.duration ? `${Math.floor(r.duration/60)}分${Math.floor(r.duration%60)}秒` : '处理中';
+  const date = relativeTime(r.created_at);
+  const dur = r.duration ? friendlyDuration(r.duration) : '';
   const statusClass = r.status;
   const statusText = {pending:'等待中', processing:'处理中', completed:'已完成', failed:'失败'}[r.status] || r.status;
   const speakers = (r.speakers||[]).map((s,i) => `<span class="speaker-tag">${s}</span>`).join('');
 
   return `
-    <div class="card rec-card" onclick="openRecording('${r.id}')">
+    <div class="card rec-card" onclick="openRecording('${r.id}')" oncontextmenu="event.preventDefault();showRecordingMenu('${r.id}')" ontouchstart="this._lt=setTimeout(()=>{showRecordingMenu('${r.id}')},500)" ontouchend="clearTimeout(this._lt)" ontouchmove="clearTimeout(this._lt)">
       <div class="rec-header">
         <div class="rec-icon">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1025,6 +1029,11 @@ async function initChatView() {
 
   view.innerHTML = `
     <div class="chat-messages" id="chatMessages"></div>
+    <div style="display:flex;gap:6px;padding:4px 12px;overflow-x:auto;scrollbar-width:none;flex-shrink:0" id="chatQuickBar">
+      <button class="filter-chip" onclick="quickAsk(this.textContent)" style="flex-shrink:0;font-size:11px">最近讨论了什么？</button>
+      <button class="filter-chip" onclick="quickAsk(this.textContent)" style="flex-shrink:0;font-size:11px">有哪些待办事项？</button>
+      <button class="filter-chip" onclick="quickAsk(this.textContent)" style="flex-shrink:0;font-size:11px">关键决策总结</button>
+    </div>
     <div class="chat-input-bar">
       <input class="chat-input" id="chatInput" placeholder="输入你的问题..." onkeypress="if(event.key==='Enter')sendChat()">
       <button class="chat-send" onclick="sendChat()">
@@ -1037,13 +1046,7 @@ async function initChatView() {
   try {
     const history = await api(`/api/chat/history?conversation_id=${chatConversationId}&limit=50`);
     if (history.length === 0) {
-      msgs.innerHTML = `
-        <div class="chat-msg ai"><div class="bubble">你好！我是 VoiceKB 智能助手，可以帮你查找和分析录音内容。</div></div>
-        <div style="display:flex;flex-wrap:wrap;gap:8px;padding:0 12px;margin-bottom:12px">
-          <button class="filter-chip" onclick="quickAsk(this.textContent)" style="text-align:left">最近的录音讨论了什么？</button>
-          <button class="filter-chip" onclick="quickAsk(this.textContent)" style="text-align:left">有哪些待办事项？</button>
-          <button class="filter-chip" onclick="quickAsk(this.textContent)" style="text-align:left">帮我总结一下所有录音的关键信息</button>
-        </div>`;
+      msgs.innerHTML = `<div class="chat-msg ai"><div class="bubble">你好！我是 VoiceKB 智能助手，可以帮你查找和分析录音内容。试试下方的快捷提问，或直接输入你的问题。</div></div>`;
     } else {
       history.forEach(m => {
         const cls = m.role === 'user' ? 'user' : 'ai';
@@ -1666,6 +1669,27 @@ if (window.visualViewport) {
       if (msgs) setTimeout(() => msgs.scrollTop = msgs.scrollHeight, 50);
     }
   });
+}
+
+/* ── 工具函数 ──────────────────────────────────────────────────────── */
+function relativeTime(dateStr) {
+  const now = Date.now();
+  const d = new Date(dateStr).getTime();
+  const diff = Math.floor((now - d) / 1000);
+  if (diff < 60) return '刚刚';
+  if (diff < 3600) return `${Math.floor(diff/60)}分钟前`;
+  if (diff < 86400) return `${Math.floor(diff/3600)}小时前`;
+  if (diff < 172800) return '昨天';
+  if (diff < 604800) return `${Math.floor(diff/86400)}天前`;
+  return new Date(dateStr).toLocaleDateString('zh-CN', {month:'short', day:'numeric'});
+}
+
+function friendlyDuration(seconds) {
+  if (!seconds) return '';
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  if (m === 0) return `${s}秒`;
+  return s > 0 ? `${m}分${s}秒` : `${m}分钟`;
 }
 
 /* ── Init ───────────────────────────────────────────────────────────── */
