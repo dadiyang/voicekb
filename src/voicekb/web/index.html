@@ -841,7 +841,7 @@ function renderDetail(rec) {
             <span class="speaker-tag" onclick="event.stopPropagation();showRenameModal('${g.speaker_id}')" style="padding:1px 6px;font-size:11px">${g.speaker_id}</span>
             <span class="ts">${ts}</span>
           </div>
-          <div class="transcript-text">${g.texts.join('')}</div>
+          <div class="transcript-text">${g.texts.join('<br>')}</div>
         </div>
       </div>`;
   }).join('');
@@ -1806,15 +1806,60 @@ function friendlyDuration(seconds) {
 
 /* ── Markdown 格式化 ──────────────────────────────────────────────── */
 function formatMarkdown(text) {
-  return text
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/###\s*(.+)/g, '<div style="font-weight:600;margin:8px 0 4px;font-size:13px">$1</div>')
-    .replace(/---/g, '<hr>')
-    .replace(/^- (.+)/gm, '<li>$1</li>')
-    .replace(/^\d+\.\s+(.+)/gm, '<li>$1</li>')
-    .replace(/(<li>.*<\/li>\n?)+/g, m => '<ul style="padding-left:16px;margin:4px 0">' + m + '</ul>')
-    .replace(/\n\n/g, '<br><br>')
-    .replace(/\n/g, '<br>');
+  // 按段落分割处理
+  const lines = text.split('\n');
+  let html = '';
+  let inList = false;
+
+  for (let line of lines) {
+    let trimmed = line.trim();
+    if (!trimmed) {
+      if (inList) { html += '</ul>'; inList = false; }
+      html += '<div style="height:6px"></div>';
+      continue;
+    }
+
+    // 标题
+    if (trimmed.startsWith('### ')) {
+      if (inList) { html += '</ul>'; inList = false; }
+      html += `<div style="font-weight:600;margin:10px 0 4px;font-size:13px;color:var(--color-text-primary)">${trimmed.slice(4).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')}</div>`;
+      continue;
+    }
+
+    // 有序列表（1. 2. 等）
+    const olMatch = trimmed.match(/^(\d+)\.\s+(.+)/);
+    if (olMatch) {
+      if (!inList) { html += '<ul style="padding-left:20px;margin:4px 0;list-style:none">'; inList = true; }
+      html += `<li style="margin-bottom:4px;text-indent:-1em;padding-left:1em"><span style="color:var(--color-primary);font-weight:600">${olMatch[1]}.</span> ${olMatch[2].replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')}</li>`;
+      continue;
+    }
+
+    // 无序列表（- 开头，含缩进的子项）
+    const ulMatch = trimmed.match(/^[-•]\s+(.+)/);
+    if (ulMatch) {
+      const indent = line.search(/\S/);
+      if (!inList) { html += '<ul style="padding-left:16px;margin:4px 0">'; inList = true; }
+      const ml = indent > 4 ? 'margin-left:16px;' : '';
+      html += `<li style="margin-bottom:3px;${ml}">${ulMatch[1].replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')}</li>`;
+      continue;
+    }
+
+    // 分割线
+    if (trimmed === '---' || trimmed === '***') {
+      if (inList) { html += '</ul>'; inList = false; }
+      html += '<div style="height:1px;background:var(--color-border);margin:8px 0"></div>';
+      continue;
+    }
+
+    // 普通段落
+    if (inList) { html += '</ul>'; inList = false; }
+    let content = trimmed
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\s{2,}$/, '');  // 去尾部空格
+    html += `<div style="margin-bottom:4px">${content}</div>`;
+  }
+  if (inList) html += '</ul>';
+  return html;
 }
 
 /* ── Init ───────────────────────────────────────────────────────────── */
