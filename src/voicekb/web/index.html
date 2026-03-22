@@ -370,7 +370,6 @@ a { color: var(--color-primary); text-decoration: none; }
 <!-- Views -->
 <div id="viewHome" class="view active"></div>
 <div id="viewDetail" class="view"></div>
-<div id="viewSearch" class="view"></div>
 <div id="viewChat" class="view"></div>
 <div id="viewProfile" class="view"></div>
 
@@ -385,12 +384,8 @@ a { color: var(--color-primary); text-decoration: none; }
 <!-- Bottom Tab Bar -->
 <nav class="tab-bar">
   <button class="tab-item active" data-view="viewHome" onclick="switchTab(this)">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/></svg>
     <span>录音</span>
-  </button>
-  <button class="tab-item" data-view="viewSearch" onclick="switchTab(this)">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-    <span>搜索</span>
   </button>
   <button class="tab-item" data-view="viewChat" onclick="switchTab(this)">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
@@ -419,7 +414,6 @@ function switchTab(el) {
     document.getElementById(viewId).classList.add('active');
     currentView = viewId;
     if (viewId === 'viewHome') loadRecordings();
-    if (viewId === 'viewSearch') initSearchView();
     if (viewId === 'viewChat') initChatView();
     if (viewId === 'viewProfile') initProfileView();
   }
@@ -441,13 +435,21 @@ async function api(path, opts = {}) {
   return resp.json();
 }
 
-/* ── Home View: Recording List ─────────────────────────────────────── */
+/* ── Home View: 搜索 + 录音列表 ───────────────────────────────────── */
 async function loadRecordings() {
   const view = document.getElementById('viewHome');
   try {
     recordings = await api('/api/recordings');
+
+    // 搜索栏 + 结果/列表容器
+    const searchBar = `
+      <div class="search-bar">
+        <input class="search-input" id="homeSearchInput" placeholder="搜索录音内容..." oninput="debounceHomeSearch()">
+      </div>`;
+
     if (recordings.length === 0) {
       view.innerHTML = `
+        ${searchBar}
         <div class="empty-state">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/>
@@ -461,9 +463,58 @@ async function loadRecordings() {
         </div>`;
       return;
     }
-    view.innerHTML = recordings.map(r => renderRecordingCard(r)).join('');
+
+    const cards = recordings.map(r => renderRecordingCard(r)).join('');
+    view.innerHTML = `
+      ${searchBar}
+      <div id="homeSearchResults" class="hidden"></div>
+      <div id="homeRecordingList">${cards}</div>`;
   } catch(e) {
     view.innerHTML = '<div class="card"><p>加载失败，请稍后重试</p></div>';
+  }
+}
+
+let homeSearchTimer;
+function debounceHomeSearch() {
+  clearTimeout(homeSearchTimer);
+  homeSearchTimer = setTimeout(doHomeSearch, 400);
+}
+
+async function doHomeSearch() {
+  const q = document.getElementById('homeSearchInput')?.value?.trim();
+  const resultsDiv = document.getElementById('homeSearchResults');
+  const listDiv = document.getElementById('homeRecordingList');
+  if (!resultsDiv || !listDiv) return;
+
+  if (!q) {
+    resultsDiv.classList.add('hidden');
+    listDiv.classList.remove('hidden');
+    return;
+  }
+
+  try {
+    const results = await api(`/api/search?q=${encodeURIComponent(q)}&type=hybrid`);
+    listDiv.classList.add('hidden');
+    resultsDiv.classList.remove('hidden');
+
+    if (results.length === 0) {
+      resultsDiv.innerHTML = '<div class="card" style="text-align:center;color:var(--color-text-tertiary)">没有找到相关内容</div>';
+      return;
+    }
+    resultsDiv.innerHTML = results.map(r => {
+      const text = r.segment.text.replace(
+        new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'),
+        '<mark class="search-highlight">$1</mark>'
+      );
+      return `
+        <div class="search-result-item" onclick="openRecording('${r.recording_id}')">
+          <div style="font-size:12px;color:var(--color-text-tertiary);margin-bottom:3px">${r.recording_filename} · ${r.segment.speaker_id}</div>
+          <div style="font-size:14px;line-height:1.6">${text}</div>
+        </div>`;
+    }).join('');
+  } catch(e) {
+    resultsDiv.innerHTML = '<div class="card">搜索出错</div>';
+    resultsDiv.classList.remove('hidden');
   }
 }
 
@@ -713,47 +764,6 @@ async function doRename(oldName) {
 function closeModal() {
   const m = document.getElementById('renameModal');
   if (m) m.remove();
-}
-
-/* ── Search View ───────────────────────────────────────────────────── */
-function initSearchView() {
-  const view = document.getElementById('viewSearch');
-  if (view.querySelector('.search-bar')) return;  // already initialized
-  view.innerHTML = `
-    <div class="search-bar">
-      <input class="search-input" id="searchInput" placeholder="搜索录音内容..." oninput="debounceSearch()">
-    </div>
-    <div id="searchResults"></div>`;
-}
-
-let searchTimer;
-function debounceSearch() {
-  clearTimeout(searchTimer);
-  searchTimer = setTimeout(doSearch, 400);
-}
-
-async function doSearch() {
-  const q = document.getElementById('searchInput')?.value?.trim();
-  const container = document.getElementById('searchResults');
-  if (!q || !container) { if(container) container.innerHTML = ''; return; }
-
-  try {
-    const results = await api(`/api/search?q=${encodeURIComponent(q)}&type=hybrid`);
-    if (results.length === 0) {
-      container.innerHTML = '<div class="card"><p style="color:var(--color-text-tertiary)">没有找到相关内容</p></div>';
-      return;
-    }
-    container.innerHTML = results.map(r => {
-      const text = r.segment.text.replace(new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'), '<mark class="search-highlight">$1</mark>');
-      return `
-        <div class="search-result-item" onclick="openRecording('${r.recording_id}')">
-          <div style="font-size:12px;color:var(--color-text-tertiary);margin-bottom:4px">${r.recording_filename} · ${r.segment.speaker_id}</div>
-          <div style="font-size:14px">${text}</div>
-        </div>`;
-    }).join('');
-  } catch(e) {
-    container.innerHTML = '<div class="card"><p>搜索出错</p></div>';
-  }
 }
 
 /* ── Chat View — 多轮对话 + 历史持久化 ─────────────────────────────── */
