@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     llm_api_key: str = "not-needed"
 
     # ── 搜索 ──────────────────────────────────────────────────────────────
-    embedding_model: str = "BAAI/bge-small-zh-v1.5"
+    embedding_model: str = "BAAI/bge-base-zh-v1.5"
 
     # ── 服务 ──────────────────────────────────────────────────────────────
     host: str = "0.0.0.0"

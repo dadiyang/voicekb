@@ -127,18 +127,23 @@ class RecordingStore:
         self._conn.commit()
 
     def _get_chroma(self):
-        """懒加载 ChromaDB。"""
+        """懒加载 ChromaDB，使用中文 embedding 模型。"""
         if self._chroma_collection is None:
             import chromadb
             from chromadb.config import Settings as ChromaSettings
+            from chromadb.utils.embedding_functions import SentenceTransformerEmbeddingFunction
 
             client = chromadb.PersistentClient(
                 path=str(self._settings.chroma_dir),
                 settings=ChromaSettings(anonymized_telemetry=False),
             )
+            embedding_fn = SentenceTransformerEmbeddingFunction(
+                model_name=self._settings.embedding_model,
+            )
             self._chroma_collection = client.get_or_create_collection(
-                name="segments",
+                name="segments_v2",  # 新 collection，避免旧向量维度不匹配
                 metadata={"hnsw:space": "cosine"},
+                embedding_function=embedding_fn,
             )
         return self._chroma_collection
 
