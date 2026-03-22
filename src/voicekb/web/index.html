@@ -22,8 +22,9 @@
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 20px;
-  --shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
-  --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+  --shadow-sm: 0 2px 8px rgba(0,0,0,0.06);
+  --shadow-md: 0 4px 16px rgba(0,0,0,0.1);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,0.12);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -32,6 +33,11 @@ body {
   background: var(--bg-page); color: var(--text-primary);
   line-height: 1.5; overflow-x: hidden;
   padding-bottom: calc(60px + var(--safe-bottom));
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
 }
 a { color: var(--primary); text-decoration: none; }
 
@@ -45,7 +51,7 @@ a { color: var(--primary); text-decoration: none; }
   background: var(--bg-card); border-bottom: 1px solid var(--border);
   padding: 12px 16px; display: flex; align-items: center; justify-content: space-between;
 }
-.top-nav h1 { font-size: 18px; font-weight: 700; }
+.top-nav h1 { font-size: 20px; font-weight: 800; letter-spacing: -0.02em; }
 .top-nav h1 span { color: var(--primary); }
 
 /* ── Bottom Tab Bar ────────────────────────────────────────────────── */
@@ -57,9 +63,9 @@ a { color: var(--primary); text-decoration: none; }
 .tab-item {
   flex: 1; display: flex; flex-direction: column; align-items: center;
   padding: 4px 0; cursor: pointer; border: none; background: none;
-  font-size: 10px; color: var(--text-tertiary); transition: color 0.2s;
+  font-size: 11px; font-weight: 500; color: var(--text-tertiary); transition: color 0.2s;
 }
-.tab-item.active { color: var(--primary); }
+.tab-item.active { color: var(--primary); font-weight: 600; }
 .tab-item svg { width: 24px; height: 24px; margin-bottom: 2px; }
 
 /* ── View Container ────────────────────────────────────────────────── */
@@ -70,8 +76,9 @@ a { color: var(--primary); text-decoration: none; }
 .card {
   background: var(--bg-card); border-radius: var(--radius-md);
   padding: 16px; margin: 0 16px 12px; box-shadow: var(--shadow-sm);
+  border: 1px solid rgba(0,0,0,0.03);
 }
-.card-title { font-size: 15px; font-weight: 600; margin-bottom: 8px; }
+.card-title { font-size: 15px; font-weight: 700; margin-bottom: 8px; }
 .card-meta { font-size: 12px; color: var(--text-tertiary); }
 
 /* ── Recording Card ────────────────────────────────────────────────── */
@@ -85,7 +92,7 @@ a { color: var(--primary); text-decoration: none; }
 }
 .rec-icon svg { width: 22px; height: 22px; color: var(--primary); }
 .rec-info { flex: 1; min-width: 0; }
-.rec-name { font-size: 15px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rec-name { font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rec-meta { font-size: 12px; color: var(--text-tertiary); margin-top: 2px; }
 .rec-speakers { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .speaker-tag {
@@ -116,18 +123,19 @@ a { color: var(--primary); text-decoration: none; }
 /* ── Buttons ───────────────────────────────────────────────────────── */
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-  padding: 10px 24px; border-radius: var(--radius-lg); font-size: 14px;
-  font-weight: 500; border: none; cursor: pointer; transition: all 0.15s;
+  padding: 12px 28px; border-radius: var(--radius-lg); font-size: 15px;
+  font-weight: 600; border: none; cursor: pointer; transition: all 0.15s;
+  letter-spacing: 0.02em;
 }
-.btn-primary { background: var(--primary); color: #fff; }
-.btn-primary:active { background: var(--primary-dark); }
+.btn-primary { background: linear-gradient(135deg, var(--primary), #6366F1); color: #fff; box-shadow: 0 4px 14px rgba(79,70,229,0.3); }
+.btn-primary:active { opacity: 0.85; transform: scale(0.97); }
 .btn-outline { background: transparent; color: var(--primary); border: 1.5px solid var(--primary); }
 .btn-sm { padding: 6px 14px; font-size: 12px; border-radius: 14px; }
 .btn-block { width: 100%; }
 .btn-fab {
   position: fixed; right: 20px; bottom: calc(76px + var(--safe-bottom));
   width: 56px; height: 56px; border-radius: 50%; z-index: 90;
-  box-shadow: var(--shadow-md); padding: 0;
+  box-shadow: 0 6px 20px rgba(79,70,229,0.4); padding: 0;
 }
 .btn-fab svg { width: 24px; height: 24px; }
 
@@ -156,7 +164,7 @@ a { color: var(--primary); text-decoration: none; }
 /* ── Detail View ───────────────────────────────────────────────────── */
 .detail-header { padding: 16px; }
 .detail-back { display: flex; align-items: center; gap: 4px; font-size: 14px; color: var(--primary); cursor: pointer; margin-bottom: 12px; }
-.detail-title { font-size: 20px; font-weight: 700; margin-bottom: 8px; }
+.detail-title { font-size: 18px; font-weight: 700; margin-bottom: 8px; word-break: break-all; }
 .detail-meta { font-size: 13px; color: var(--text-tertiary); }
 
 .summary-card {
@@ -183,7 +191,7 @@ a { color: var(--primary); text-decoration: none; }
   display: flex; align-items: center; gap: 6px;
 }
 .transcript-speaker .ts { font-weight: 400; color: var(--text-tertiary); font-size: 11px; }
-.transcript-text { font-size: 14px; color: var(--text-primary); line-height: 1.6; }
+.transcript-text { font-size: 14px; color: var(--text-primary); line-height: 1.7; font-weight: 400; }
 
 /* Speaker colors */
 .spk-0 { background: var(--primary); }
@@ -864,6 +872,44 @@ async function showSpeakerManager() {
       </div>
     </div>`;
   document.body.appendChild(modal);
+}
+
+/* ── 后台恢复 — 手机切回前台时自动刷新状态 ──────────────────────────── */
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    console.log('Page resumed from background');
+    // 恢复当前视图的数据
+    if (currentView === 'viewHome') {
+      loadRecordings();
+    } else if (currentView === 'viewDetail' && currentRecording) {
+      // 重新加载详情（可能处理已完成）
+      openRecording(currentRecording.id);
+    }
+    // 如果有正在处理的录音，检查是否已完成
+    checkProcessingRecordings();
+  }
+});
+
+async function checkProcessingRecordings() {
+  try {
+    const recs = await api('/api/recordings');
+    const processing = recs.filter(r => r.status === 'processing');
+    if (processing.length > 0) {
+      // 有录音还在处理，继续轮询
+      processing.forEach(r => {
+        watchProgress(r.id);
+      });
+    }
+    // 如果之前在等处理，现在完成了，刷新列表
+    const view = document.getElementById('viewHome');
+    if (view.classList.contains('active') && view.querySelector('.progress-bar-bg')) {
+      const allDone = recs.every(r => r.status !== 'processing');
+      if (allDone) {
+        loadRecordings();
+        showToast('处理已完成');
+      }
+    }
+  } catch(e) { /* ignore */ }
 }
 
 /* ── Init ───────────────────────────────────────────────────────────── */
