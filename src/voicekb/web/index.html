@@ -38,15 +38,18 @@
   --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  height: 100%; overflow: hidden; /* 禁止 body 滚动，防止 Chrome 地址栏跳动 */
+}
 body {
   font-family: -apple-system, "PingFang SC", "Helvetica Neue", Arial, sans-serif;
   background: var(--color-bg-page); color: var(--color-text-primary);
-  font-size: 14px; line-height: 1.6; overflow-x: hidden;
-  padding-bottom: calc(56px + var(--safe-bottom));
+  font-size: 14px; line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   -webkit-text-size-adjust: 100%;
   -webkit-tap-highlight-color: transparent;
+  display: flex; flex-direction: column;
 }
 a { color: var(--color-primary); text-decoration: none; }
 
@@ -76,8 +79,18 @@ a { color: var(--color-primary); text-decoration: none; }
 .tab-item.active { color: var(--color-primary); font-weight: 600; }
 .tab-item svg { width: 22px; height: 22px; margin-bottom: 2px; }
 
-/* ===== View ===== */
-.view { display: none; padding: 8px 0; min-height: calc(100vh - 112px); }
+/* ===== View — 内部滚动容器，防止 Chrome 地址栏跳动 ===== */
+.view-container {
+  flex: 1; overflow: hidden; position: relative;
+}
+.view {
+  display: none; padding: 8px 0;
+  position: absolute; inset: 0;
+  overflow-y: auto; overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain; /* 防止滚动穿透和下拉刷新 */
+  padding-bottom: calc(56px + var(--safe-bottom));
+}
 .view.active { display: block; }
 
 /* ===== Card — 继承 hotel_shop product-card 规范 ===== */
@@ -246,10 +259,10 @@ a { color: var(--color-primary); text-decoration: none; }
 .chat-msg.ai .bubble { background: var(--color-bg-card); border: 1px solid var(--color-border); border-bottom-left-radius: var(--radius-sm); box-shadow: var(--shadow-sm); }
 .chat-msg.ai .bubble .source-link { font-size: 12px; color: var(--color-primary); margin-top: 6px; display: block; }
 .chat-input-bar {
-  position: fixed; bottom: calc(56px + var(--safe-bottom));
+  position: sticky; bottom: 0;
   left: 0; right: 0; padding: 8px 12px;
   background: var(--color-bg-card); border-top: 1px solid var(--color-border);
-  display: flex; gap: 8px;
+  display: flex; gap: 8px; z-index: 10;
 }
 .chat-input {
   flex: 1; height: 44px; padding: 0 14px;
@@ -306,7 +319,7 @@ a { color: var(--color-primary); text-decoration: none; }
 
 /* ── Audio Player ──────────────────────────────────────────────────── */
 .audio-player {
-  position: sticky; top: 49px; z-index: 50;
+  position: sticky; top: 0; z-index: 50;
   background: var(--color-bg-card); border-bottom: 1px solid var(--color-border);
   padding: 10px 16px; box-shadow: var(--shadow-sm);
 }
@@ -367,11 +380,13 @@ a { color: var(--color-primary); text-decoration: none; }
 <!-- Toast -->
 <div class="toast" id="toast"></div>
 
-<!-- Views -->
-<div id="viewHome" class="view active"></div>
-<div id="viewDetail" class="view"></div>
-<div id="viewChat" class="view"></div>
-<div id="viewProfile" class="view"></div>
+<!-- Views — 内部容器滚动，不触发浏览器地址栏收缩 -->
+<div class="view-container">
+  <div id="viewHome" class="view active"></div>
+  <div id="viewDetail" class="view"></div>
+  <div id="viewChat" class="view"></div>
+  <div id="viewProfile" class="view"></div>
+</div>
 
 <!-- FAB Upload Button — label 直接关联 input，避免 JS .click() 在移动端被拦截 -->
 <label class="btn btn-primary btn-fab" id="fabUpload" for="fileInput">
