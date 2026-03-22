@@ -349,29 +349,35 @@ class RecordingStore:
 
     @staticmethod
     def _merge_segments_to_chunks(recording: Recording) -> list[dict]:
-        """将同一说话人的连续片段合并为 chunk。"""
+        """将同一说话人的连续片段合并为 chunk。
+
+        语义索引优先用润色版（更干净、embedding 更准），无润色版时回退到原文。
+        """
         if not recording.segments:
             return []
+
+        def _best_text(seg) -> str:
+            return seg.text_polished if getattr(seg, 'text_polished', None) else seg.text
 
         chunks: list[dict] = []
         current = {
             "speaker_id": recording.segments[0].speaker_id,
             "start": recording.segments[0].start,
             "end": recording.segments[0].end,
-            "text": recording.segments[0].text,
+            "text": _best_text(recording.segments[0]),
         }
 
         for seg in recording.segments[1:]:
             if seg.speaker_id == current["speaker_id"]:
                 current["end"] = seg.end
-                current["text"] += " " + seg.text
+                current["text"] += " " + _best_text(seg)
             else:
                 chunks.append(current)
                 current = {
                     "speaker_id": seg.speaker_id,
                     "start": seg.start,
                     "end": seg.end,
-                    "text": seg.text,
+                    "text": _best_text(seg),
                 }
 
         chunks.append(current)
