@@ -550,7 +550,7 @@ function renderRecordingCard(r) {
           </svg>
         </div>
         <div class="rec-info">
-          <div class="rec-name">${r.filename}</div>
+          <div class="rec-name">${r.title || r.filename}</div>
           <div class="rec-meta">${date} · ${dur} <span class="rec-status ${statusClass}">${statusText}</span></div>
         </div>
       </div>
@@ -683,8 +683,13 @@ function renderDetail(rec) {
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
         返回
       </div>
-      <div class="detail-title">${rec.filename}</div>
-      <div class="detail-meta">${date} · ${dur} · ${(rec.speakers||[]).join(', ')}</div>
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+        <div style="flex:1">
+          <div class="detail-title">${rec.title || rec.filename}</div>
+          <div class="detail-meta">${date} · ${dur} · ${(rec.speakers||[]).join(', ')}</div>
+        </div>
+        <button class="btn btn-sm" style="background:#FFEBEE;color:#FF3B30;flex-shrink:0;margin-top:2px" onclick="deleteRecording('${rec.id}')">删除</button>
+      </div>
     </div>
     <div class="audio-player">
       <audio id="audioPlayer" controls preload="metadata" src="/api/recordings/${rec.id}/audio"></audio>
@@ -729,6 +734,17 @@ function seekAudio(startTime, idx) {
     document.querySelectorAll('.transcript-item.playing').forEach(e => e.classList.remove('playing'));
     const item = document.querySelector(`.transcript-item[data-idx="${idx}"]`);
     if (item) item.classList.add('playing');
+  }
+}
+
+async function deleteRecording(recId) {
+  if (!confirm('确定要删除这条录音吗？删除后不可恢复。')) return;
+  try {
+    await api(`/api/recordings/${recId}/delete`, {method:'POST'});
+    showToast('已删除');
+    backToList();
+  } catch(e) {
+    showToast('删除失败');
   }
 }
 

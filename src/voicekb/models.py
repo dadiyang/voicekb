@@ -20,6 +20,7 @@ class Recording(BaseModel):
 
     id: str
     filename: str
+    title: str = ""  # LLM 生成的可读标题，空则显示 filename
     source: str = "upload"
     duration: float = 0.0
     created_at: datetime = Field(default_factory=datetime.now)

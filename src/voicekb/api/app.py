@@ -178,8 +178,12 @@ async def _process_recording(recording_id: str, audio_path: Path) -> None:
             None, _pipeline.process, audio_path, recording_id, progress_cb,
         )
 
-        # 生成摘要
-        _progress[recording_id] = {"step": "生成摘要", "percent": 92}
+        # 生成标题和摘要
+        _progress[recording_id] = {"step": "生成标题", "percent": 90}
+        title = await _rag.generate_title(recording)
+        recording.title = title
+
+        _progress[recording_id] = {"step": "生成摘要", "percent": 93}
         summary = await _rag.summarize_recording(recording)
         recording.summary = summary
 
@@ -225,6 +229,41 @@ async def get_recording(recording_id: str):
 async def get_recording_status(recording_id: str):
     progress = _progress.get(recording_id, {"step": "未知", "percent": 0})
     return progress
+
+
+@app.post("/api/recordings/{recording_id}/delete")
+async def delete_recording(recording_id: str):
+    """删除录音及其所有数据。"""
+    assert _store is not None
+    rec = _store.get_recording(recording_id)
+    if not rec:
+        return JSONResponse({"error": "录音不存在"}, status_code=404)
+
+    # 删除音频文件
+    for f in settings.upload_dir.iterdir():
+        if f.name.startswith(recording_id):
+            f.unlink(missing_ok=True)
+
+    # 删除 Markdown
+    md = settings.markdown_dir / f"{recording_id}.md"
+    md.unlink(missing_ok=True)
+
+    # 删除数据库记录（CASCADE 会删 segments）
+    _store._conn.execute("DELETE FROM segments WHERE recording_id = ?", (recording_id,))
+    _store._conn.execute("DELETE FROM recordings WHERE id = ?", (recording_id,))
+    _store._conn.commit()
+
+    # 删除 ChromaDB 索引
+    try:
+        col = _store._get_chroma()
+        existing = col.get(where={"recording_id": recording_id})
+        if existing and existing["ids"]:
+            col.delete(ids=existing["ids"])
+    except Exception:
+        pass
+
+    logger.info("删除录音: %s", recording_id)
+    return {"deleted": True}
 
 
 @app.post("/api/speakers/rename")

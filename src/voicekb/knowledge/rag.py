@@ -114,6 +114,26 @@ class RAGEngine:
 
         return {"answer": answer, "sources": sources}
 
+    async def generate_title(self, recording: Recording) -> str:
+        """根据录音内容生成简短可读的标题。"""
+        if not recording.segments:
+            return recording.filename
+
+        # 取前 20 段内容让 LLM 起标题
+        sample = "\n".join(
+            f"{s.speaker_id}: {s.text}" for s in recording.segments[:20]
+        )
+        prompt = (
+            f"以下是一段录音的前几句对话：\n\n{sample}\n\n"
+            "请用一个简短的中文标题概括这段录音的主题，"
+            "要求：不超过15个字，不加书名号，直接输出标题文字。"
+        )
+        title = await self._llm.generate(prompt, max_tokens=30)
+        title = title.strip().strip("\"'《》「」").strip()
+        if not title or len(title) > 30:
+            return recording.filename
+        return title
+
     async def summarize_recording(self, recording: Recording) -> str:
         """生成录音摘要。"""
         if not recording.segments:

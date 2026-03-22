@@ -33,6 +33,7 @@ class RecordingStore:
             CREATE TABLE IF NOT EXISTS recordings (
                 id TEXT PRIMARY KEY,
                 filename TEXT NOT NULL,
+                title TEXT DEFAULT '',
                 source TEXT NOT NULL DEFAULT 'upload',
                 duration REAL NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL,
@@ -107,10 +108,11 @@ class RecordingStore:
         # SQLite
         self._conn.execute(
             "INSERT OR REPLACE INTO recordings "
-            "(id, filename, source, duration, created_at, status, summary, tags, error, speakers) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (recording.id, recording.filename, recording.source,
-             recording.duration, recording.created_at.isoformat(),
+            "(id, filename, title, source, duration, created_at, status, summary, tags, error, speakers) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (recording.id, recording.filename, recording.title,
+             recording.source, recording.duration,
+             recording.created_at.isoformat(),
              recording.status, recording.summary,
              json.dumps(recording.tags), recording.error,
              json.dumps(recording.speakers)),
@@ -208,6 +210,7 @@ class RecordingStore:
         return Recording(
             id=row["id"],
             filename=row["filename"],
+            title=row["title"] if "title" in row.keys() else "",
             source=row["source"],
             duration=row["duration"],
             created_at=datetime.fromisoformat(row["created_at"]),
