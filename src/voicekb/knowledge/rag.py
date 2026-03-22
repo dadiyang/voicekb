@@ -221,42 +221,95 @@ class RAGEngine:
 
     async def summarize_recording(self, recording: Recording,
                                   custom_prompt: str | None = None) -> str:
-        """生成录音摘要。custom_prompt 是用户自定义的摘要指令。"""
+        """生成录音摘要。长录音自动分块总结。"""
         if not recording.segments:
             return ""
 
-        # 转写内容（始终附加，用户不需要管）
-        transcript = "\n".join(
-            f"**{s.speaker_id}** ({int(s.start)//60}:{int(s.start)%60:02d}): {s.text}"
-            for s in recording.segments[:100]
-        )
-
-        # 优先级：用户自定义 > 平台内置按分类 > 平台通用默认
         instruction = custom_prompt or get_builtin_prompt(recording.category)
-
-        # 替换友好占位符
         instruction = instruction.replace("{标题}", recording.title or recording.filename)
         instruction = instruction.replace("{参与者}", ", ".join(recording.speakers))
         instruction = instruction.replace("{时长}", f"{recording.duration / 60:.0f}")
         instruction = instruction.replace("{分类}", recording.category)
 
-        # 录音信息头 + 指令 + 转写内容
         header = f"录音：{recording.title or recording.filename}，时长 {recording.duration/60:.0f} 分钟，参与者：{', '.join(recording.speakers)}"
-        prompt = f"{header}\n\n{instruction}\n\n## 转写内容\n{transcript}"
 
-        summary = await self._llm.generate(prompt, max_tokens=1500)
+        # 清洗：合并同一说话人的连续碎片段
+        cleaned = self._clean_segments(recording.segments)
+
+        # 短录音（< 80 段）：直接总结
+        if len(cleaned) <= 80:
+            transcript = "\n".join(
+                f"{s.speaker_id} ({int(s.start)//60}:{int(s.start)%60:02d}): {s.text}"
+                for s in cleaned
+            )
+            prompt = f"{header}\n\n{instruction}\n\n## 转写内容\n{transcript}"
+
+            summary = await self._llm.generate(prompt, max_tokens=2000)
+        else:
+            # 长录音：分块总结 → 合成
+            logger.info("长录音分块总结: %d 段 → 分块处理", len(cleaned))
+            chunks = self._split_to_chunks(cleaned, max_per_chunk=60)
+            chunk_summaries = []
+
+            for i, chunk in enumerate(chunks):
+                chunk_transcript = "\n".join(
+                    f"{s.speaker_id} ({int(s.start)//60}:{int(s.start)%60:02d}): {s.text}"
+                    for s in chunk
+                )
+                time_range = f"{int(chunk[0].start)//60}-{int(chunk[-1].end)//60}分钟"
+                chunk_prompt = (
+                    f"{header}\n\n"
+                    f"以下是第 {i+1}/{len(chunks)} 部分（{time_range}）的转写内容。"
+                    f"请提取这部分的关键要点，简洁列出。\n\n{chunk_transcript}"
+                )
+                chunk_sum = await self._llm.generate(chunk_prompt, max_tokens=800)
+                if chunk_sum:
+                    chunk_summaries.append(f"### {time_range}\n{chunk_sum}")
+
+            # 合成最终摘要
+            if chunk_summaries:
+                merge_prompt = (
+                    f"{header}\n\n{instruction}\n\n"
+                    f"以下是分段提取的要点：\n\n" + "\n\n".join(chunk_summaries) +
+                    "\n\n请基于上述分段要点，合成一份完整的总结。"
+                )
+                summary = await self._llm.generate(merge_prompt, max_tokens=2000)
+            else:
+                summary = ""
 
         if not summary:
             speaker_counts: dict[str, int] = {}
             for seg in recording.segments:
                 speaker_counts[seg.speaker_id] = speaker_counts.get(seg.speaker_id, 0) + 1
-            summary = f"## 基础信息\n\n"
-            summary += f"- 时长: {recording.duration / 60:.0f} 分钟\n"
+            summary = f"- 时长: {recording.duration / 60:.0f} 分钟\n"
             summary += f"- 参与者: {', '.join(recording.speakers)}\n"
-            summary += f"- 总计 {len(recording.segments)} 段对话\n\n"
-            summary += "## 发言统计\n\n"
-            for spk, count in sorted(speaker_counts.items()):
-                summary += f"- {spk}: {count} 段发言\n"
+            summary += f"- 总计 {len(recording.segments)} 段对话\n"
             summary += "\n（LLM 未配置，仅显示基础统计）"
 
         return summary
+
+    @staticmethod
+    def _clean_segments(segments: list) -> list:
+        """清洗转写片段：合并同一说话人的连续碎片。"""
+        if not segments:
+            return []
+        cleaned = [segments[0].model_copy()]
+        for seg in segments[1:]:
+            prev = cleaned[-1]
+            # 同一说话人、间隔 < 2 秒、前一段 < 15 字 → 合并
+            if (seg.speaker_id == prev.speaker_id
+                    and seg.start - prev.end < 2.0
+                    and len(prev.text) < 15):
+                prev.end = seg.end
+                prev.text = prev.text + seg.text
+            else:
+                cleaned.append(seg.model_copy())
+        return cleaned
+
+    @staticmethod
+    def _split_to_chunks(segments: list, max_per_chunk: int = 60) -> list[list]:
+        """将片段按数量分块。"""
+        chunks = []
+        for i in range(0, len(segments), max_per_chunk):
+            chunks.append(segments[i:i + max_per_chunk])
+        return chunks

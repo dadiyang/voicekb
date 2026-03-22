@@ -877,9 +877,14 @@ function showRecordingMenu(recId) {
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
         <span>\u4fee\u6539\u5206\u7c7b</span>
       </div>
+      <div class="profile-menu-item" onclick="closeModal();resummarizeRecording('${recId}')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        <span>\u91cd\u65b0\u603b\u7ed3</span>
+      </div>
       <div class="profile-menu-item" onclick="closeModal();reprocessRecording('${recId}')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
         <span>\u91cd\u65b0\u8bc6\u522b</span>
+        <span style="font-size:10px;color:var(--color-text-tertiary);flex:none">(\u8f83\u6162)</span>
       </div>
       <div class="profile-menu-item" onclick="closeModal();deleteRecording('${recId}')">
         <svg viewBox="0 0 24 24" fill="none" stroke="#FF3B30" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
@@ -939,6 +944,17 @@ async function selectCategory(recId, category) {
   closeModal();
   showToast(`\u5df2\u5206\u7c7b\u4e3a\u300c${category}\u300d`);
   if (currentRecording?.id === recId) openRecording(recId);
+}
+
+async function resummarizeRecording(recId) {
+  showToast('正在重新总结...');
+  try {
+    await api(`/api/recordings/${recId}/resummarize`, {method:'POST'});
+    showToast('总结已更新');
+    openRecording(recId);
+  } catch(e) {
+    showToast('总结失败');
+  }
 }
 
 async function reprocessRecording(recId) {
@@ -1288,20 +1304,22 @@ async function savePromptWithScope(category, recordingId, scope) {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({prompt}),
     });
-    showToast('已保存，正在重新总结...');
-    await api(`/api/recordings/${recordingId}/reprocess`, {method: 'POST'});
-    restoreDetail();
   } else {
     await api('/api/summary-prompts', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({category, prompt}),
     });
-    showToast('已保存' + (recordingId ? '，正在重新总结...' : ''));
-    if (recordingId) {
-      await api(`/api/recordings/${recordingId}/reprocess`, {method: 'POST'});
-    }
-    restoreDetail();
   }
+
+  // 仅重新总结（不重跑 ASR，几秒完成）
+  if (recordingId) {
+    showToast('正在重新总结...');
+    await api(`/api/recordings/${recordingId}/resummarize`, {method: 'POST'});
+    showToast('总结已更新');
+  } else {
+    showToast('已保存');
+  }
+  restoreDetail();
 }
 
 function restoreDetail() {

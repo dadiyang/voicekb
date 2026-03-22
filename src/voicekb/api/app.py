@@ -267,6 +267,27 @@ async def reprocess_recording(recording_id: str):
     return {"recording_id": recording_id, "status": "processing"}
 
 
+@app.post("/api/recordings/{recording_id}/resummarize")
+async def resummarize_recording(recording_id: str):
+    """仅重新生成摘要（不重跑 ASR 和声纹，几秒钟完成）。"""
+    assert _store is not None
+    assert _rag is not None
+
+    rec = _store.get_recording(recording_id)
+    if not rec:
+        return JSONResponse({"error": "录音不存在"}, status_code=404)
+    if not rec.segments:
+        return JSONResponse({"error": "该录音没有转写内容"}, status_code=400)
+
+    # 三层 prompt 优先级
+    custom_prompt = rec.custom_prompt or _store.get_summary_prompt(rec.category)
+    summary = await _rag.summarize_recording(rec, custom_prompt=custom_prompt)
+    rec.summary = summary
+    _store.save_recording(rec)
+
+    return {"recording_id": recording_id, "summary_length": len(summary)}
+
+
 @app.post("/api/recordings/{recording_id}/delete")
 async def delete_recording(recording_id: str):
     """删除录音及其所有数据。"""
