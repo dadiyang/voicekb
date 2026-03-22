@@ -334,6 +334,12 @@ async def list_summary_prompts():
     assert _store is not None
     return _store.get_all_summary_prompts()
 
+@app.get("/api/summary-prompts/builtin/{category}")
+async def get_builtin_prompt_api(category: str):
+    """获取平台内置默认 prompt。"""
+    from voicekb.knowledge.rag import get_builtin_prompt
+    return {"category": category, "prompt": get_builtin_prompt(category)}
+
 @app.post("/api/summary-prompts")
 async def save_summary_prompt(req: PromptRequest):
     assert _store is not None

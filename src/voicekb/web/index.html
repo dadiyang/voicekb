@@ -1171,19 +1171,24 @@ async function showPromptManager() {
   modal.id = 'renameModal';
   modal.onclick = (e) => { if (e.target === modal) closeModal(); };
 
-  // 已有模板列表
-  const existing = prompts.map(p => {
+  // 已有自定义模板
+  const customized = prompts.map(p => {
     const preview = promptToDisplay(p.prompt).substring(0, 80);
     return `
-      <div style="border:1px solid var(--color-border);border-radius:var(--radius-lg);padding:12px;margin-bottom:10px;cursor:pointer"
+      <div style="border:1px solid var(--color-primary);border-radius:var(--radius-lg);padding:12px;margin-bottom:10px;cursor:pointer;background:rgba(79,70,229,0.02)"
            onclick="editPrompt('${p.category.replace(/'/g,"\\'")}', ${JSON.stringify(p.prompt).replace(/"/g,'&quot;')})">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-          <span style="font-weight:600;font-size:13px">${catLabel(p.category)}</span>
-          <span style="color:var(--color-text-disabled);cursor:pointer;font-size:16px;padding:0 4px" onclick="event.stopPropagation();deletePrompt(${p.id})">&times;</span>
+          <div>
+            <span style="font-weight:600;font-size:13px">${catLabel(p.category)}</span>
+            <span style="font-size:10px;color:var(--color-primary);margin-left:6px">已自定义</span>
+          </div>
+          <button class="btn btn-sm btn-outline" style="height:26px;font-size:11px;padding:0 10px" onclick="event.stopPropagation();resetPrompt(${p.id})">重置默认</button>
         </div>
         <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.5">${preview}...</div>
       </div>`;
   }).join('');
+
+  const existing = customized || '<p style="color:var(--color-text-tertiary);text-align:center;padding:8px 0;font-size:13px">全部使用平台默认模板，效果不满意可自定义</p>';
 
   // 分类选择 chips
   const usedCats = new Set(prompts.map(p => p.category));
@@ -1227,6 +1232,14 @@ function editPrompt(category, promptText) {
 
 async function showPromptEditor(category, promptText) {
   const catLabel = c => c === '_default' ? '通用' : c;
+
+  // 获取平台默认 prompt 作为参考
+  let builtinPrompt = '';
+  try {
+    const resp = await api(`/api/summary-prompts/builtin/${encodeURIComponent(category)}`);
+    builtinPrompt = resp.prompt || '';
+  } catch(e) {}
+
   const modal = document.createElement('div');
   modal.className = 'modal-overlay';
   modal.id = 'renameModal';
@@ -1235,7 +1248,13 @@ async function showPromptEditor(category, promptText) {
   modal.innerHTML = `
     <div class="modal-sheet" style="max-height:85vh;overflow-y:auto">
       <div class="modal-title">编辑模板 · ${catLabel(category)}</div>
-      <div style="font-size:12px;color:var(--color-text-tertiary);margin-bottom:8px">输入 <b>@</b> 插入变量，对话内容自动附加</div>
+      ${builtinPrompt ? `
+        <details style="margin-bottom:12px">
+          <summary style="font-size:12px;color:var(--color-primary);cursor:pointer;font-weight:500">查看平台默认模板</summary>
+          <div style="font-size:12px;color:var(--color-text-tertiary);background:var(--color-bg-hover);padding:10px;border-radius:var(--radius-lg);margin-top:6px;white-space:pre-wrap;line-height:1.7">${builtinPrompt}</div>
+          <button class="btn btn-sm btn-outline" style="margin-top:6px" onclick="document.getElementById('promptEditor').innerHTML=promptToHtml(${JSON.stringify(builtinPrompt).replace(/"/g,'&quot;')})">基于默认修改</button>
+        </details>` : ''}
+      <div style="font-size:12px;color:var(--color-text-tertiary);margin-bottom:6px">输入 <b>@</b> 插入变量，对话内容会自动附加</div>
       <div style="position:relative">
         <div class="prompt-editor" id="promptEditor" contenteditable="true"
              data-placeholder="输入总结指令..." oninput="onPromptInput(event)"></div>
@@ -1248,12 +1267,57 @@ async function showPromptEditor(category, promptText) {
     </div>`;
   document.body.appendChild(modal);
 
-  // 填充已有内容（将占位符转为标签）
+  // 填充内容：已有自定义 or 空
   const editor = document.getElementById('promptEditor');
   if (editor && promptText) {
     editor.innerHTML = promptToHtml(promptText);
   }
 }
+
+// 修复：首个占位符退格删不掉
+document.addEventListener('keydown', (e) => {
+  const editor = document.getElementById('promptEditor');
+  if (!editor || document.activeElement !== editor) return;
+  if (e.key !== 'Backspace' && e.key !== 'Delete') return;
+
+  const sel = window.getSelection();
+  if (!sel.rangeCount) return;
+  const range = sel.getRangeAt(0);
+
+  // 光标在编辑器开头，且第一个子节点是 chip
+  if (e.key === 'Backspace' && range.collapsed) {
+    const node = range.startContainer;
+    // 光标在第一个文本节点且 offset=0，前面是 chip
+    if (node === editor && range.startOffset > 0) {
+      const prev = editor.childNodes[range.startOffset - 1];
+      if (prev?.classList?.contains('var-chip')) {
+        e.preventDefault();
+        prev.remove();
+        return;
+      }
+    }
+    if (node.nodeType === 3 && range.startOffset === 0) {
+      const prev = node.previousSibling;
+      if (prev?.classList?.contains('var-chip')) {
+        e.preventDefault();
+        prev.remove();
+        return;
+      }
+    }
+  }
+
+  // Delete 键删除后面的 chip
+  if (e.key === 'Delete' && range.collapsed) {
+    const node = range.startContainer;
+    if (node.nodeType === 3 && range.startOffset === node.textContent.length) {
+      const next = node.nextSibling;
+      if (next?.classList?.contains('var-chip')) {
+        e.preventDefault();
+        next.remove();
+      }
+    }
+  }
+});
 
 // @ 触发变量选择
 function onPromptInput(e) {
@@ -1393,6 +1457,13 @@ async function savePromptFor(category) {
 
 async function deletePrompt(id) {
   await api(`/api/summary-prompts/${id}/delete`, {method:'POST'});
+  closeModal();
+  showPromptManager();
+}
+
+async function resetPrompt(id) {
+  await api(`/api/summary-prompts/${id}/delete`, {method:'POST'});
+  showToast('已重置为平台默认');
   closeModal();
   showPromptManager();
 }
