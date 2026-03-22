@@ -69,9 +69,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 静态文件 — 使用打磨好的 H5 前端
+# 静态文件 — uni-app H5 构建产物（优先）或 fallback 到旧版
+h5_dir = Path(__file__).parent.parent.parent.parent / "client" / "dist" / "build" / "h5"
 web_dir = Path(__file__).parent.parent / "web"
-_frontend_dir = web_dir
+_frontend_dir = h5_dir if h5_dir.exists() else web_dir
 
 # 挂载 assets/ 目录（uni-app 构建的 JS/CSS）
 _assets_dir = _frontend_dir / "assets" if _frontend_dir.exists() else None
