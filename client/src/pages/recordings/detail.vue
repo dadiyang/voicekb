@@ -121,7 +121,14 @@ onLoad((query) => {
 
 onUnmounted(() => {
   if (pollTimer) clearInterval(pollTimer)
-  if (audioCtx) { audioCtx.stop(); audioCtx.destroy() }
+  if (audioCtx) {
+    // #ifdef H5
+    audioCtx.pause()
+    // #endif
+    // #ifndef H5
+    audioCtx.stop(); audioCtx.destroy()
+    // #endif
+  }
 })
 
 async function loadRecording() {
@@ -132,7 +139,13 @@ async function loadRecording() {
     } else {
       audioDur.value = recording.value.duration || 0
       if (seekTime > 0) {
-        setTimeout(() => seekTo(seekTime, -1), 500)
+        // 找到对应的 segment index
+        const segs = mergedSegments.value
+        let targetIdx = 0
+        for (let i = 0; i < segs.length; i++) {
+          if (segs[i].start >= seekTime - 1) { targetIdx = segs[i].indices[0]; break }
+        }
+        setTimeout(() => seekTo(seekTime, targetIdx), 800)
       }
     }
   } catch (e) {
