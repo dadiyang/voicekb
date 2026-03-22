@@ -84,9 +84,6 @@ _static_sub = _frontend_dir / "static" if _frontend_dir.exists() else None
 if _static_sub and _static_sub.exists():
     app.mount("/static", StaticFiles(directory=str(_static_sub)), name="static")
 
-# 旧的 web/ 目录（fallback）
-if web_dir.exists():
-    app.mount("/legacy-static", StaticFiles(directory=str(web_dir)), name="legacy")
 
 
 # ── 请求/响应模型 ────────────────────────────────────────────────────────
@@ -109,7 +106,7 @@ class CategoryRequest(BaseModel):
 async def index():
     """返回 H5 首页。"""
     from fastapi.responses import HTMLResponse
-    html_path = web_dir / "index.html"
+    html_path = _frontend_dir / "index.html"
     if html_path.exists():
         return HTMLResponse(html_path.read_text(encoding="utf-8"))
     return {"message": "VoiceKB API"}

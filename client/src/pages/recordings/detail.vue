@@ -43,19 +43,30 @@
         <text class="player-hint">点击对话文字可跳转播放对应片段</text>
       </view>
 
-      <!-- 摘要卡片 -->
+      <!-- 摘要卡片（可折叠） -->
       <view v-if="recording.summary" class="summary-card">
         <view class="summary-header">
           <text class="summary-label">会议摘要</text>
-          <text class="summary-edit" @click="openPromptEditor">调整总结方式</text>
+          <view style="display:flex;gap:16rpx;align-items:center">
+            <text class="summary-edit" @click="openPromptEditor">调整总结方式</text>
+            <text class="summary-toggle" @click="summaryCollapsed = !summaryCollapsed">{{ summaryCollapsed ? '展开' : '收起' }}</text>
+          </view>
         </view>
-        <rich-text class="summary-text" :nodes="renderMarkdown(recording.summary)" />
+        <view class="summary-text" :class="{collapsed: summaryCollapsed}">
+          <rich-text :nodes="renderMarkdown(recording.summary)" />
+        </view>
       </view>
 
-      <!-- 对话记录标题 -->
+      <!-- 对话记录标题 + 流畅版/原文切换 -->
       <view class="transcript-title">
         <text class="transcript-title-text">对话记录</text>
-        <text v-if="hasUnnamed" class="transcript-title-hint">点击说话人标签可标注真实姓名</text>
+        <view v-if="hasPolished" class="text-mode-toggle">
+          <text class="text-mode-btn" :class="{active: textMode === 'polished'}" @click="textMode = 'polished'">流畅版</text>
+          <text class="text-mode-btn" :class="{active: textMode === 'raw'}" @click="textMode = 'raw'">原文</text>
+        </view>
+      </view>
+      <view v-if="hasUnnamed" style="padding:0 24rpx;margin-bottom:16rpx">
+        <text class="transcript-title-hint">点击说话人标签可标注真实姓名</text>
       </view>
 
       <!-- 对话记录 -->
@@ -72,7 +83,13 @@
               <text class="speaker-tag" @click.stop="showRenameModal(g.speaker_id)">{{ g.speaker_id }}</text>
               <text class="ts">{{ formatTimestamp(g.start) }}</text>
             </view>
-            <text class="transcript-text" v-for="(t, ti) in g.texts" :key="ti">{{ t }}</text>
+            <!-- 根据模式显示原文或润色版 -->
+            <template v-if="textMode === 'polished' && g.polished.length">
+              <text class="transcript-text" v-for="(t, ti) in g.polished" :key="'p'+ti">{{ t }}</text>
+            </template>
+            <template v-else>
+              <text class="transcript-text" v-for="(t, ti) in g.texts" :key="'r'+ti">{{ t }}</text>
+            </template>
           </view>
         </view>
       </view>
@@ -219,8 +236,38 @@ const speakerColors = computed(() => {
   return map
 })
 
-// ── 合并连续同一说话人发言 ──────────────────────────────────────
-const mergedSegs = computed(() => mergeSegments(recording.value?.segments))
+// ── 摘要折叠 ──────────────────────────────────────────────────
+const summaryCollapsed = ref(false)
+
+// ── 文本模式切换（流畅版/原文） ──────────────────────────────────
+const textMode = ref('polished')
+
+// ── 合并连续同一说话人发言（含润色版本） ────────────────────────
+const mergedSegs = computed(() => {
+  const segments = recording.value?.segments
+  if (!segments?.length) return []
+  const merged = []
+  segments.forEach((seg, idx) => {
+    const last = merged[merged.length - 1]
+    if (last && last.speaker_id === seg.speaker_id && seg.start - last.end < 3) {
+      last.texts.push(seg.text)
+      if (seg.text_polished) last.polished.push(seg.text_polished)
+      last.end = seg.end
+      last.indices.push(idx)
+    } else {
+      merged.push({
+        speaker_id: seg.speaker_id, start: seg.start, end: seg.end,
+        texts: [seg.text],
+        polished: seg.text_polished ? [seg.text_polished] : [],
+        indices: [idx],
+      })
+    }
+  })
+  return merged
+})
+
+// ── 是否有润色版本 ──────────────────────────────────────────────
+const hasPolished = computed(() => mergedSegs.value.some(g => g.polished.length > 0))
 
 // ── 是否有未命名说话人 ──────────────────────────────────────────
 const hasUnnamed = computed(() =>
@@ -472,11 +519,15 @@ async function resummarizeRecording() {
 
 // ── 重新识别 ────────────────────────────────────────────────────
 async function reprocessRecording() {
-  uni.showToast({ title: '重新识别中...', icon: 'none' })
+  if (recording.value?.status === 'processing') {
+    uni.showToast({ title: '正在处理中，请稍候', icon: 'none' })
+    return
+  }
+  uni.showToast({ title: '已开始重新识别，可返回列表', icon: 'none' })
   try {
     await recordingApi.reprocess(recId)
     recording.value.status = 'processing'
-    progress.value = { step: '准备中', percent: 0 }
+    progress.value = { step: '准备中...', percent: 0 }
     destroyAudio()
     startPolling()
   } catch (e) {
@@ -696,12 +747,35 @@ function goBack() { uni.navigateBack() }
 }
 .summary-label { font-size: $font-base; font-weight: 600; color: $color-primary-dark; }
 .summary-edit { font-size: 22rpx; color: $color-primary; }
-.summary-text { font-size: $font-sm; color: $color-text-secondary; line-height: 1.8; }
+.summary-toggle { font-size: 22rpx; color: $color-text-tertiary; }
+.summary-text {
+  font-size: $font-sm; color: $color-text-secondary; line-height: 1.8;
+  transition: max-height 0.3s ease; overflow: hidden;
+}
+.summary-text.collapsed {
+  max-height: 240rpx;
+  /* 小程序不支持 mask-image，用渐变 overlay 替代 */
+  position: relative;
+}
+
+/* ── 文本模式切换 ────────────────────────────────────── */
+.text-mode-toggle {
+  display: inline-flex; gap: 0; background: $color-bg-hover;
+  border-radius: $radius-full; padding: 4rpx;
+}
+.text-mode-btn {
+  padding: 8rpx 24rpx; border-radius: $radius-full; font-size: 24rpx;
+  color: $color-text-tertiary; font-weight: 500; white-space: nowrap;
+}
+.text-mode-btn.active {
+  background: $color-primary; color: #fff;
+  box-shadow: 0 4rpx 12rpx rgba(79,70,229,0.25);
+}
 
 /* ── 对话记录标题 ─────────────────────────────────────── */
 .transcript-title {
   padding: 0 $spacing-lg; margin-bottom: $spacing-md;
-  display: flex; align-items: baseline; gap: $spacing-md;
+  display: flex; align-items: center; justify-content: space-between;
 }
 .transcript-title-text { font-size: $font-md; font-weight: 600; }
 .transcript-title-hint { font-size: 20rpx; color: $color-text-disabled; }

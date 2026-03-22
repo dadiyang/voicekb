@@ -118,9 +118,16 @@ function getRecTitle(id) {
 
 function filterBy(cat) { activeCategory.value = cat }
 
+let listRefreshTimer = null
+
 async function loadRecordings() {
   try {
     recordings.value = await recordingApi.list()
+    // 有录音在处理中时自动刷新
+    if (recordings.value.some(r => r.status === 'processing')) {
+      clearTimeout(listRefreshTimer)
+      listRefreshTimer = setTimeout(loadRecordings, 5000)
+    }
   } catch (e) {
     uni.showToast({ title: '加载失败', icon: 'none' })
   }
