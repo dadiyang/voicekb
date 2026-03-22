@@ -1,4 +1,4 @@
-"""ASR 引擎 — 基于 faster-whisper 的语音识别。"""
+"""ASR 引擎 — 基于 faster-whisper 的语音识别，支持自定义术语。"""
 
 import logging
 from pathlib import Path
@@ -19,15 +19,27 @@ class ASREngine:
         self._model = WhisperModel(model_size, device=device, compute_type=compute_type)
         logger.info("Whisper 模型加载完成")
 
-    def transcribe(self, audio_path: Path, language: str = "zh") -> list[Segment]:
-        """转写音频文件，返回带时间戳的文本段列表。"""
+    def transcribe(self, audio_path: Path, language: str = "zh",
+                   hotwords: list[str] | None = None) -> list[Segment]:
+        """转写音频文件，返回带时间戳的文本段列表。
+
+        Args:
+            hotwords: 自定义术语列表（人名、专业术语等），提高识别准确率。
+        """
         logger.info("开始转写: %s", audio_path.name)
+
+        # 将术语列表注入 initial_prompt，引导模型使用正确用词
+        initial_prompt = None
+        if hotwords:
+            initial_prompt = "以下是本次对话可能涉及的人名和术语：" + "、".join(hotwords) + "。"
+            logger.info("使用自定义术语: %s", initial_prompt)
 
         segments_iter, info = self._model.transcribe(
             str(audio_path),
             language=language,
             vad_filter=True,
             vad_parameters={"min_silence_duration_ms": 500},
+            initial_prompt=initial_prompt,
         )
 
         result: list[Segment] = []
@@ -36,7 +48,7 @@ class ASREngine:
                 start=seg.start,
                 end=seg.end,
                 text=seg.text.strip(),
-                speaker_id="",  # 待声纹分离后填充
+                speaker_id="",
                 confidence=seg.avg_logprob,
             ))
 

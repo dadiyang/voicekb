@@ -58,6 +58,16 @@ class RecordingStore:
                 ON segments(recording_id);
         """)
 
+        # 自定义术语表
+        self._conn.execute("""
+            CREATE TABLE IF NOT EXISTS vocabulary (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                term TEXT NOT NULL UNIQUE,
+                category TEXT DEFAULT 'general'
+            )
+        """)
+        self._conn.commit()
+
         # FTS5 — 需要单独处理（不能在 executescript 中和其他语句混合）
         try:
             self._conn.execute("""
@@ -327,6 +337,36 @@ class RecordingStore:
 
         chunks.append(current)
         return chunks
+
+    # ── 术语管理 ──────────────────────────────────────────────────────
+
+    def get_vocabulary(self) -> list[dict]:
+        """获取所有自定义术语。"""
+        rows = self._conn.execute(
+            "SELECT id, term, category FROM vocabulary ORDER BY category, term"
+        ).fetchall()
+        return [{"id": r[0], "term": r[1], "category": r[2]} for r in rows]
+
+    def get_hotwords(self) -> list[str]:
+        """获取所有术语文本（供 ASR 使用）。"""
+        rows = self._conn.execute("SELECT term FROM vocabulary").fetchall()
+        return [r[0] for r in rows]
+
+    def add_vocabulary(self, term: str, category: str = "general") -> None:
+        """添加术语。"""
+        try:
+            self._conn.execute(
+                "INSERT INTO vocabulary (term, category) VALUES (?, ?)",
+                (term.strip(), category),
+            )
+            self._conn.commit()
+        except sqlite3.IntegrityError:
+            pass  # 已存在
+
+    def delete_vocabulary(self, term_id: int) -> None:
+        """删除术语。"""
+        self._conn.execute("DELETE FROM vocabulary WHERE id = ?", (term_id,))
+        self._conn.commit()
 
     def close(self) -> None:
         self._conn.close()

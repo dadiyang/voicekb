@@ -231,6 +231,28 @@ async def get_recording_status(recording_id: str):
     return progress
 
 
+@app.post("/api/recordings/{recording_id}/reprocess")
+async def reprocess_recording(recording_id: str):
+    """重新处理录音（使用最新术语库）。"""
+    assert _store is not None
+
+    # 找到原始音频文件
+    audio_path = None
+    for f in settings.upload_dir.iterdir():
+        if f.name.startswith(recording_id):
+            audio_path = f
+            break
+
+    if not audio_path:
+        return JSONResponse({"error": "原始音频文件不存在"}, status_code=404)
+
+    _store.update_recording_status(recording_id, "processing")
+    _progress[recording_id] = {"step": "排队中", "percent": 0}
+
+    asyncio.create_task(_process_recording(recording_id, audio_path))
+    return {"recording_id": recording_id, "status": "processing"}
+
+
 @app.post("/api/recordings/{recording_id}/delete")
 async def delete_recording(recording_id: str):
     """删除录音及其所有数据。"""
@@ -263,6 +285,30 @@ async def delete_recording(recording_id: str):
         pass
 
     logger.info("删除录音: %s", recording_id)
+    return {"deleted": True}
+
+
+# ── 术语管理 ──────────────────────────────────────────────────────────
+
+class VocabRequest(BaseModel):
+    term: str
+    category: str = "general"
+
+@app.get("/api/vocabulary")
+async def list_vocabulary():
+    assert _store is not None
+    return _store.get_vocabulary()
+
+@app.post("/api/vocabulary")
+async def add_vocabulary(req: VocabRequest):
+    assert _store is not None
+    _store.add_vocabulary(req.term, req.category)
+    return {"added": req.term}
+
+@app.post("/api/vocabulary/{term_id}/delete")
+async def delete_vocabulary(term_id: int):
+    assert _store is not None
+    _store.delete_vocabulary(term_id)
     return {"deleted": True}
 
 

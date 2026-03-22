@@ -70,9 +70,19 @@ class ProcessingPipeline:
 
         _progress("开始处理", 0)
 
-        # Step 1: ASR
+        # Step 1: ASR（加载自定义术语提高识别准确率）
         _progress("语音识别", 5)
-        asr_segments = self._asr.transcribe(audio_path)
+        hotwords: list[str] = []
+        try:
+            from voicekb.knowledge.store import RecordingStore
+            _temp_store = RecordingStore(self._settings)
+            hotwords = _temp_store.get_hotwords()
+            _temp_store.close()
+            if hotwords:
+                logger.info("加载 %d 个自定义术语", len(hotwords))
+        except Exception:
+            pass
+        asr_segments = self._asr.transcribe(audio_path, hotwords=hotwords or None)
         _progress("语音识别完成", 40)
 
         # Step 2: 声纹分离

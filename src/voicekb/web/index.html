@@ -745,6 +745,10 @@ function showRecordingMenu(recId) {
   modal.innerHTML = `
     <div class="modal-sheet">
       <div class="modal-title">\u64cd\u4f5c</div>
+      <div class="profile-menu-item" onclick="closeModal();reprocessRecording('${recId}')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+        <span>\u91cd\u65b0\u8bc6\u522b</span>
+      </div>
       <div class="profile-menu-item" onclick="closeModal();deleteRecording('${recId}')">
         <svg viewBox="0 0 24 24" fill="none" stroke="#FF3B30" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
         <span style="color:#FF3B30">\u5220\u9664\u5f55\u97f3</span>
@@ -754,6 +758,18 @@ function showRecordingMenu(recId) {
       </div>
     </div>`;
   document.body.appendChild(modal);
+}
+
+async function reprocessRecording(recId) {
+  showToast('重新识别中...');
+  try {
+    await api(`/api/recordings/${recId}/reprocess`, {method:'POST'});
+    // 回到首页显示进度
+    backToList();
+    watchProgress(recId);
+  } catch(e) {
+    showToast('操作失败: ' + e.message);
+  }
 }
 
 async function deleteRecording(recId) {
@@ -943,6 +959,11 @@ async function initProfileView() {
         <span>说话人管理</span>
         <span class="arrow">&rsaquo;</span>
       </div>
+      <div class="profile-menu-item" onclick="showVocabManager()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>
+        <span>术语管理</span>
+        <span class="arrow">&rsaquo;</span>
+      </div>
       <div class="profile-menu-item" onclick="showAbout()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
         <span>关于 VoiceKB</span>
@@ -982,6 +1003,65 @@ function showAbout() {
       </div>
     </div>`;
   document.body.appendChild(modal);
+}
+
+async function showVocabManager() {
+  const vocab = await api('/api/vocabulary');
+  const categories = {person: '人名', term: '术语', general: '通用'};
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.id = 'renameModal';
+  modal.onclick = (e) => { if (e.target === modal) closeModal(); };
+
+  const list = vocab.map(v => `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--color-border)">
+      <div>
+        <span style="font-weight:500">${v.term}</span>
+        <span style="font-size:11px;color:var(--color-text-tertiary);margin-left:6px">${categories[v.category] || v.category}</span>
+      </div>
+      <button class="btn btn-sm btn-outline" style="color:#FF3B30;border-color:#FF3B30" onclick="deleteVocab(${v.id})">删除</button>
+    </div>`).join('');
+
+  modal.innerHTML = `
+    <div class="modal-sheet">
+      <div class="modal-title">术语管理</div>
+      <div style="font-size:12px;color:var(--color-text-tertiary);margin-bottom:12px">添加人名、专业术语，提高语音识别准确率</div>
+      <div style="display:flex;gap:8px;margin-bottom:16px">
+        <input class="modal-input" id="vocabInput" placeholder="输入术语（如：张三）" style="margin-bottom:0;flex:1">
+        <select id="vocabCategory" style="height:44px;border:1.5px solid transparent;background:var(--color-bg-hover);border-radius:var(--radius-lg);padding:0 8px;font-size:13px;color:var(--color-text-primary);outline:none">
+          <option value="person">人名</option>
+          <option value="term">术语</option>
+          <option value="general">通用</option>
+        </select>
+      </div>
+      <button class="btn btn-primary btn-block btn-sm" onclick="addVocab()" style="margin-bottom:16px">添加</button>
+      <div style="max-height:40vh;overflow-y:auto">${list || '<p style="color:var(--color-text-tertiary);text-align:center">还没有添加术语</p>'}</div>
+      <div class="modal-actions" style="margin-top:16px">
+        <button class="btn btn-outline btn-block" onclick="closeModal()">关闭</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  setTimeout(() => document.getElementById('vocabInput')?.focus(), 100);
+}
+
+async function addVocab() {
+  const term = document.getElementById('vocabInput')?.value?.trim();
+  const category = document.getElementById('vocabCategory')?.value || 'general';
+  if (!term) return;
+  await api('/api/vocabulary', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({term, category}),
+  });
+  closeModal();
+  showVocabManager();
+  showToast(`已添加"${term}"`);
+}
+
+async function deleteVocab(id) {
+  await api(`/api/vocabulary/${id}/delete`, {method: 'POST'});
+  closeModal();
+  showVocabManager();
 }
 
 async function showSpeakerManager() {
