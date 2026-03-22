@@ -59,6 +59,26 @@ export function mergeSegments(segments) {
  */
 export function renderMarkdown(text) {
   if (!text) return ''
+
+  // 先提取并渲染 Markdown 表格
+  text = text.replace(/((?:^\|.+\|[ \t]*\n)+)/gm, (block) => {
+    const rows = block.trim().split('\n').filter(r => r.trim())
+    if (rows.length < 2) return block
+    // 跳过分隔行（|---|---|）
+    const dataRows = rows.filter(r => !/^\|[\s\-:|]+\|$/.test(r.trim()))
+    if (!dataRows.length) return block
+    const parseRow = (row) => row.replace(/^\|/, '').replace(/\|$/, '').split('|').map(c => c.trim())
+    const headerCells = parseRow(dataRows[0])
+    let html = '<table style="width:100%;border-collapse:collapse;font-size:13px;margin:8px 0">'
+    html += '<tr>' + headerCells.map(c => `<th style="border:1px solid #E5E6EB;padding:6px 8px;background:#F7F8FA;text-align:left;font-weight:600">${c}</th>`).join('') + '</tr>'
+    for (let i = 1; i < dataRows.length; i++) {
+      const cells = parseRow(dataRows[i])
+      html += '<tr>' + cells.map(c => `<td style="border:1px solid #E5E6EB;padding:6px 8px">${c}</td>`).join('') + '</tr>'
+    }
+    html += '</table>'
+    return html
+  })
+
   return text
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/### (.+)/g, '<h4>$1</h4>')

@@ -1,17 +1,23 @@
 <template>
   <view class="page">
+    <!-- 说明头部 -->
+    <view class="header-card">
+      <text class="ti ti-book header-icon"></text>
+      <text class="header-title">术语管理</text>
+      <text class="header-desc">添加后新录音会自动使用，旧录音可点「重新识别」更新</text>
+    </view>
+
+    <view class="list-section">
     <!-- Tab 切换：人名 / 术语 -->
     <view class="tab-header">
       <view class="tab-btn" :class="{active: tab === 'person'}" @click="tab = 'person'">人名</view>
       <view class="tab-btn" :class="{active: tab === 'term'}" @click="tab = 'term'">术语</view>
     </view>
 
-    <view class="hint-text">添加后新录音会自动使用，旧录音可点「重新识别」更新</view>
-
     <!-- 添加输入框 -->
     <view class="add-row">
       <input class="add-input" v-model="newTerm"
-             :placeholder="tab === 'person' ? '输入人名（如：周神、张三）' : '输入术语（如：K8s、微服务）'"
+             :placeholder="tab === 'person' ? '输入人名（如：李明、王芳）' : '输入术语（如：K8s、微服务）'"
              confirm-type="done" @confirm="addTerm" />
       <view class="add-btn" @click="addTerm">
         <text class="ti ti-plus add-icon"></text>
@@ -29,6 +35,7 @@
         <text class="ti ti-x delete-btn" @click="deleteTerm(v)"></text>
       </view>
     </view>
+    </view>
   </view>
 </template>
 
@@ -44,7 +51,7 @@ const newTerm = ref('')
 const filtered = computed(() => vocab.value.filter(v => v.category === tab.value))
 
 async function load() {
-  try { vocab.value = await vocabApi.list() } catch (e) {}
+  try { vocab.value = await vocabApi.list() } catch (e) { uni.showToast({ title: '加载失败', icon: 'none' }) }
 }
 
 async function addTerm() {
@@ -77,7 +84,19 @@ onShow(load)
 </script>
 
 <style lang="scss" scoped>
-.page { min-height: 100vh; background: $color-bg-page; padding: $spacing-lg; }
+.page { min-height: 100vh; background: $color-bg-page; }
+
+/* ── 说明头部 ── */
+.header-card {
+  background: linear-gradient(135deg, #6366F1 0%, #818CF8 100%);
+  padding: $spacing-xl $spacing-lg;
+  text-align: center;
+}
+.header-icon { font-size: 64rpx; color: #fff; display: block; margin-bottom: $spacing-md; }
+.header-title { font-size: $font-xl; font-weight: 700; color: #fff; display: block; }
+.header-desc { font-size: $font-sm; color: rgba(255,255,255,0.85); display: block; margin-top: $spacing-xs; }
+
+.list-section { padding: $spacing-lg; }
 
 .tab-header {
   display: flex; gap: $spacing-md; margin-bottom: $spacing-md;

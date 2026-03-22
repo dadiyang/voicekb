@@ -10,9 +10,21 @@ page {
   line-height: 1.5;
 }
 
+/* H5: uni-page-body 默认 overflow:auto 会破坏 position:sticky */
+// #ifdef H5
+uni-page-body {
+  overflow: visible !important;
+}
+// #endif
+
 /* Reset */
 view, text, image, scroll-view, input, textarea, button {
   box-sizing: border-box;
+}
+
+/* 防止移动端 Chrome 聚焦 input 时自动缩放（font-size < 16px 会触发） */
+input, textarea {
+  font-size: 16px !important;
 }
 
 /* ---- Layout utilities ---- */

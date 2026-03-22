@@ -4,7 +4,12 @@
 
     <!-- 处理中 -->
     <view v-if="recording && recording.status === 'processing'" class="card" style="margin-top: 24rpx">
-      <text class="card-title">{{ recording.title || recording.filename }}</text>
+      <view style="display:flex;justify-content:space-between;align-items:center">
+        <text class="card-title" style="margin-bottom:0">{{ recording.title || recording.filename }}</text>
+        <view class="action-btn" @click="showRecordingMenu">
+          <text class="ti ti-dots action-icon"></text>
+        </view>
+      </view>
       <view class="progress-bg"><view class="progress-fill" :style="{width: progress.percent + '%'}" /></view>
       <text class="progress-text">{{ progress.step }} ({{ progress.percent }}%)</text>
       <text class="progress-hint">正在处理，请稍候</text>
@@ -19,7 +24,7 @@
             <text class="detail-title">{{ recording.title || recording.filename }}</text>
             <text class="detail-meta">{{ dateDisplay }} · {{ durDisplay }} · {{ (recording.speakers||[]).join(', ') }}</text>
           </view>
-          <view class="action-btn" @click="showRecordingMenu" v-if="recording.status !== 'processing'">
+          <view class="action-btn" @click="showRecordingMenu">
             <text class="ti ti-dots action-icon"></text>
           </view>
         </view>
@@ -40,15 +45,19 @@
       </view>
 
       <!-- 摘要卡片（可折叠） -->
-      <view v-if="recording.summary" class="summary-card">
+      <view v-if="recording.summary || resummarizing" class="summary-card">
         <view class="summary-header">
           <text class="summary-label">会议摘要</text>
           <view style="display:flex;gap:16rpx;align-items:center">
             <text class="summary-edit" @click="openPromptEditor">调整总结方式</text>
-            <text class="summary-toggle" @click="summaryCollapsed = !summaryCollapsed">{{ summaryCollapsed ? '展开' : '收起' }}</text>
+            <text v-if="!resummarizing" class="summary-toggle" @click="summaryCollapsed = !summaryCollapsed">{{ summaryCollapsed ? '展开' : '收起' }}</text>
           </view>
         </view>
-        <view class="summary-text" :class="{collapsed: summaryCollapsed}">
+        <view v-if="resummarizing" class="summary-loading">
+          <view class="loading-spinner"></view>
+          <text class="loading-text">正在根据新的总结方式重新生成摘要...</text>
+        </view>
+        <view v-else class="summary-text" :class="{collapsed: summaryCollapsed}">
           <rich-text :nodes="renderMarkdown(recording.summary)" />
         </view>
       </view>
@@ -61,13 +70,22 @@
           <text class="text-mode-btn" :class="{active: textMode === 'raw'}" @click="textMode = 'raw'">原文</text>
         </view>
       </view>
+
+      <!-- 说话人筛选 -->
+      <scroll-view v-if="(recording.speakers||[]).length > 1" scroll-x class="speaker-filter">
+        <text class="speaker-chip" :class="{active: !filterSpeaker}" @click="filterSpeaker = ''">全部</text>
+        <text v-for="s in (recording.speakers||[])" :key="s"
+              class="speaker-chip" :class="{active: filterSpeaker === s, ['spk-bg-' + (speakerColors[s] % 5)]: filterSpeaker === s}"
+              @click="filterSpeaker = filterSpeaker === s ? '' : s">{{ s }}</text>
+      </scroll-view>
+
       <view v-if="hasUnnamed" style="padding:0 24rpx;margin-bottom:16rpx">
         <text class="transcript-title-hint">点击说话人标签可标注真实姓名</text>
       </view>
 
       <!-- 对话记录 -->
       <view class="transcript">
-        <view v-for="(g, gi) in mergedSegs" :key="gi"
+        <view v-for="(g, gi) in filteredSegs" :key="gi"
               class="transcript-item" :class="{playing: playingIdx === g.indices[0]}"
               :data-start="g.start" :data-end="g.end"
               @click="seekAudio(g.start, g.indices[0])">
@@ -163,18 +181,18 @@
       </view>
       <view class="prompt-editor-body">
         <text class="prompt-editor-title">调整总结方式</text>
-        <text class="prompt-editor-subtitle">{{ promptCategoryLabel }}{{ promptIsCustom ? '' : '' }}<text v-if="promptIsCustom" style="color:#4F46E5"> · 已自定义</text></text>
+        <text class="prompt-editor-subtitle">当前录音：{{ recording?.title || recording?.filename }}<text v-if="promptIsCustom" style="color:#4F46E5"> · 已自定义</text></text>
 
-        <text class="prompt-editor-desc">告诉 AI 你希望怎么总结这类录音：</text>
+        <text class="prompt-editor-desc">告诉 AI 你希望怎么总结这段录音，修改后会自动重新生成摘要：</text>
         <textarea class="prompt-textarea" v-model="promptText"
                   :maxlength="-1" auto-height
                   placeholder="例如：&#10;· 重点列出行动项和负责人&#10;· 用表格形式整理决策&#10;· 提取关键数据和数字" />
 
         <!-- 作用范围按钮 -->
         <view class="prompt-actions">
-          <button class="btn-primary btn-block" @click="savePromptWithScope('this')">保存并重新总结</button>
+          <button class="btn-primary btn-block" @click="savePromptWithScope('this')">仅对本条生效，重新总结</button>
           <button class="btn-outline btn-block" style="margin-top: 16rpx"
-                  @click="savePromptWithScope('all')">应用到所有「{{ promptCategoryLabel }}」类</button>
+                  @click="savePromptWithScope('all')">应用到所有「{{ promptCategoryLabel }}」类录音</button>
         </view>
 
         <!-- 恢复默认 -->
@@ -232,8 +250,12 @@ const speakerColors = computed(() => {
   return map
 })
 
-// ── 摘要折叠 ──────────────────────────────────────────────────
+// ── 摘要折叠 + 重新生成状态 ──────────────────────────────────────
 const summaryCollapsed = ref(false)
+const resummarizing = ref(false)
+
+// ── 说话人筛选 ───────────────────────────────────────────────────
+const filterSpeaker = ref('')
 
 // ── 文本模式切换（流畅版/原文） ──────────────────────────────────
 const textMode = ref('polished')
@@ -261,6 +283,13 @@ const mergedSegs = computed(() => {
   })
   return merged
 })
+
+// ── 说话人筛选后的对话 ──────────────────────────────────────────
+const filteredSegs = computed(() =>
+  filterSpeaker.value
+    ? mergedSegs.value.filter(g => g.speaker_id === filterSpeaker.value)
+    : mergedSegs.value
+)
 
 // ── 是否有润色版本 ──────────────────────────────────────────────
 const hasPolished = computed(() => mergedSegs.value.some(g => g.polished.length > 0))
@@ -515,10 +544,6 @@ async function resummarizeRecording() {
 
 // ── 重新识别 ────────────────────────────────────────────────────
 async function reprocessRecording() {
-  if (recording.value?.status === 'processing') {
-    uni.showToast({ title: '正在处理中，请稍候', icon: 'none' })
-    return
-  }
   uni.showToast({ title: '已开始重新识别，可返回列表', icon: 'none' })
   try {
     await recordingApi.reprocess(recId)
@@ -598,14 +623,9 @@ async function doRename() {
 }
 
 // ── 摘要模板编辑 ────────────────────────────────────────────────
-function openPromptEditor() {
+async function openPromptEditor() {
   const category = recording.value?.category || '_default'
-  uni.navigateTo({ url: `/pages/prompts/edit?cat=${encodeURIComponent(category)}` })
-}
-
-async function _old_openPromptEditor() {
-  const category = recording.value?.category || '_default'
-  const promptCategory = ref(category)
+  promptCategory.value = category
 
   try {
     const allPrompts = await promptApi.list()
@@ -646,21 +666,25 @@ async function savePromptWithScope(scope) {
 
   try {
     if (scope === 'this') {
-      // 仅本条录音
       await recordingApi.setPrompt(recId, prompt)
     } else {
-      // 所有同类
       await promptApi.save(promptCategory.value, prompt)
     }
 
-    // 保存后重新总结
-    uni.showToast({ title: '正在重新总结...', icon: 'none' })
-    await recordingApi.resummarize(recId)
-    uni.showToast({ title: '总结已更新', icon: 'success' })
-
+    // 立刻关闭编辑器，进入摘要加载状态
     promptEditorVisible.value = false
-    loadRecording()
+    resummarizing.value = true
+    summaryCollapsed.value = false
+
+    // 后台重新总结
+    await recordingApi.resummarize(recId)
+
+    // 完成：刷新数据，退出加载状态
+    await loadRecording()
+    resummarizing.value = false
+    uni.showToast({ title: '摘要已更新', icon: 'success' })
   } catch (e) {
+    resummarizing.value = false
     uni.showToast({ title: '保存失败', icon: 'none' })
   }
 }
@@ -747,6 +771,17 @@ function goBack() { uni.navigateBack() }
 .summary-label { font-size: $font-base; font-weight: 600; color: $color-primary-dark; }
 .summary-edit { font-size: 22rpx; color: $color-primary; }
 .summary-toggle { font-size: 22rpx; color: $color-text-tertiary; }
+.summary-loading {
+  display: flex; flex-direction: column; align-items: center; padding: $spacing-xxl 0;
+}
+.loading-spinner {
+  width: 48rpx; height: 48rpx; border: 4rpx solid $color-border;
+  border-top-color: $color-primary; border-radius: 50%;
+  animation: spin 0.8s linear infinite; margin-bottom: $spacing-md;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-text { font-size: $font-sm; color: $color-text-tertiary; }
+
 .summary-text {
   font-size: $font-sm; color: $color-text-secondary; line-height: 1.8;
   transition: max-height 0.3s ease; overflow: hidden;
@@ -778,6 +813,24 @@ function goBack() { uni.navigateBack() }
 }
 .transcript-title-text { font-size: $font-md; font-weight: 600; }
 .transcript-title-hint { font-size: 20rpx; color: $color-text-disabled; }
+
+/* ── 说话人筛选 ───────────────────────────────────────── */
+.speaker-filter {
+  white-space: nowrap; padding: 0 $spacing-lg $spacing-md;
+}
+.speaker-chip {
+  display: inline-block; height: 56rpx; line-height: 56rpx;
+  padding: 0 24rpx; border-radius: $radius-full;
+  font-size: 24rpx; margin-right: $spacing-sm;
+  border: 2rpx solid $color-border; background: $color-bg-card;
+  color: $color-text-secondary; white-space: nowrap;
+  &.active { background: $color-primary; color: #fff; border-color: $color-primary; }
+}
+.spk-bg-0.active { background: $color-primary; border-color: $color-primary; }
+.spk-bg-1.active { background: $color-warning; border-color: $color-warning; }
+.spk-bg-2.active { background: $color-success; border-color: $color-success; }
+.spk-bg-3.active { background: #DB2777; border-color: #DB2777; }
+.spk-bg-4.active { background: #7C3AED; border-color: #7C3AED; }
 
 /* ── 对话记录 ─────────────────────────────────────────── */
 .transcript { padding: 0 $spacing-lg $spacing-xxl; }
@@ -831,7 +884,7 @@ function goBack() { uni.navigateBack() }
 
 /* ── Modal 通用 ───────────────────────────────────────── */
 .modal-overlay {
-  position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 200;
+  position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 999;
   display: flex; align-items: flex-end; justify-content: center;
 }
 .modal-sheet {

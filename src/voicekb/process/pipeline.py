@@ -81,7 +81,7 @@ class ProcessingPipeline:
             if hotwords:
                 logger.info("加载 %d 个自定义术语", len(hotwords))
         except Exception:
-            pass
+            logger.warning("加载自定义术语失败，使用默认设置", exc_info=True)
         asr_segments = self._asr.transcribe(audio_path, hotwords=hotwords or None)
         _progress("录音转文字完成", 40)
 

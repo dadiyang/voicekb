@@ -94,7 +94,9 @@ async function loadQuickQuestions() {
     named.forEach(s => qs.push(`${s.name}说了什么？`))
     if (qs.length < 4) qs.push('关键决策总结')
     quickQuestions.value = qs
-  } catch (e) {}
+  } catch (e) {
+    quickQuestions.value = ['最近讨论了什么？', '有哪些待办事项？']
+  }
 }
 
 function askQuestion(q) { inputText.value = q; sendMessage() }
@@ -147,10 +149,10 @@ onShow(() => { if (initialized) scrollToBottom() })
 /* 整个页面用 fixed 定位，精确控制高度 */
 .chat-page {
   position: fixed;
-  top: 44px; /* 导航栏 */
+  top: var(--window-top, 44px);
   left: 0; right: 0;
-  bottom: 50px; /* native tabBar */
-  background: $color-bg-page;
+  bottom: var(--window-bottom, 50px);
+  background: $color-bg-card; /* 用白色背景消除灰色间隙 */
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -196,7 +198,7 @@ onShow(() => { if (initialized) scrollToBottom() })
 /* 底部固定区域 */
 .chat-bottom {
   flex-shrink: 0;
-  background: $color-bg-page;
+  background: $color-bg-card;
 }
 
 .quick-bar { white-space: nowrap; padding: 8rpx $spacing-md; }

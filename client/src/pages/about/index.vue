@@ -1,18 +1,16 @@
 <template>
   <view class="page">
-    <!-- Logo -->
+    <!-- Logo + 核心卖点 -->
     <view class="logo-section">
       <view class="logo-circle">
         <text class="ti ti-microphone logo-icon"></text>
       </view>
       <text class="logo-name"><text style="color:#4F46E5">Voice</text>KB</text>
-      <text class="logo-version">v0.1.0</text>
-      <text class="logo-desc">开源个人录音知识库</text>
-    </view>
-
-    <!-- 介绍 -->
-    <view class="card intro-card">
-      <text class="intro-text">把日常录音变成可搜索、可对话的个人知识库。</text>
+      <text class="logo-tagline">把日常录音变成可搜索、可对话的知识库</text>
+      <view class="privacy-badge">
+        <text class="ti ti-lock privacy-icon"></text>
+        <text class="privacy-text">完全本地部署，数据不出你的服务器</text>
+      </view>
     </view>
 
     <!-- 核心能力 -->
@@ -51,16 +49,17 @@
     <!-- 技术栈 -->
     <view class="section-label">技术栈</view>
     <view class="card tech-card">
-      <text class="tech-text">faster-whisper · resemblyzer · ChromaDB · Qwen3</text>
+      <view class="tech-tags">
+        <text class="tech-tag">faster-whisper</text>
+        <text class="tech-tag">resemblyzer</text>
+        <text class="tech-tag">ChromaDB</text>
+        <text class="tech-tag">Qwen3</text>
+        <text class="tech-tag">FastAPI</text>
+        <text class="tech-tag">uni-app</text>
+      </view>
     </view>
 
-    <!-- 安全 -->
-    <view class="card safe-card">
-      <text class="ti ti-lock safe-icon"></text>
-      <text class="safe-text">完全本地部署，数据不出你的服务器</text>
-    </view>
-
-    <text class="footer">MIT License · Made with AI</text>
+    <text class="footer">v0.1.0 · Apache-2.0 · Made with AI</text>
   </view>
 </template>
 
@@ -70,19 +69,23 @@
 <style lang="scss" scoped>
 .page { min-height: 100vh; background: $color-bg-page; padding-bottom: $spacing-xxl; }
 
-.logo-section { text-align: center; padding: $spacing-xxl $spacing-lg; }
+.logo-section { text-align: center; padding: $spacing-xxl $spacing-lg $spacing-lg; }
 .logo-circle {
   width: 128rpx; height: 128rpx; border-radius: 50%;
   background: $color-primary-gradient; margin: 0 auto $spacing-lg;
   display: flex; align-items: center; justify-content: center;
 }
 .logo-icon { font-size: 56rpx; color: #fff; }
-.logo-name { font-size: 48rpx; font-weight: 800; letter-spacing: -2rpx; display: block; }
-.logo-version { font-size: $font-xs; color: $color-text-disabled; display: block; margin-top: 4rpx; }
-.logo-desc { font-size: $font-sm; color: $color-text-tertiary; display: block; margin-top: $spacing-sm; }
+.logo-name { font-size: 48rpx; font-weight: 800; letter-spacing: -2rpx; display: block; margin-bottom: $spacing-sm; }
+.logo-tagline { font-size: $font-base; color: $color-text-secondary; display: block; line-height: 1.6; }
 
-.intro-card { text-align: center; }
-.intro-text { font-size: $font-base; color: $color-text-secondary; line-height: 1.8; }
+.privacy-badge {
+  display: inline-flex; align-items: center; gap: 8rpx;
+  margin-top: $spacing-lg; padding: 12rpx 28rpx;
+  background: #E8F5E9; border-radius: $radius-full;
+}
+.privacy-icon { font-size: 28rpx; color: $color-success; }
+.privacy-text { font-size: $font-xs; color: #2E7D32; font-weight: 500; }
 
 .section-label { font-size: $font-sm; font-weight: 600; color: $color-text-tertiary; padding: $spacing-lg $spacing-xl 0; margin-bottom: -$spacing-xs; }
 
@@ -96,11 +99,12 @@
 .feature-desc { font-size: $font-xs; color: $color-text-tertiary; }
 
 .tech-card { text-align: center; }
-.tech-text { font-size: $font-sm; color: $color-text-secondary; font-family: monospace; }
-
-.safe-card { display: flex; align-items: center; gap: $spacing-md; }
-.safe-icon { font-size: 36rpx; color: $color-success; }
-.safe-text { font-size: $font-sm; color: $color-text-secondary; }
+.tech-tags { display: flex; flex-wrap: wrap; justify-content: center; gap: 12rpx; }
+.tech-tag {
+  display: inline-block; padding: 8rpx 20rpx;
+  background: $color-bg-page; border-radius: $radius-sm;
+  font-size: $font-xs; color: $color-text-secondary; font-family: monospace;
+}
 
 .footer { display: block; text-align: center; font-size: $font-xs; color: $color-text-disabled; margin-top: $spacing-xxl; }
 </style>

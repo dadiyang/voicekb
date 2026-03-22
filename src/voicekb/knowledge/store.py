@@ -312,7 +312,7 @@ class RecordingStore:
                 if existing and existing["ids"]:
                     collection.delete(ids=existing["ids"])
             except Exception:
-                pass
+                logger.warning("清理 ChromaDB 旧数据失败", exc_info=True)
 
             if not recording.segments:
                 return

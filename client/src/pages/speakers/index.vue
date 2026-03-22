@@ -1,10 +1,13 @@
 <template>
   <view class="page">
-    <view class="section-title">
-      <text class="section-title-text">说话人管理</text>
-      <text class="section-title-hint">{{ speakers.length }} 位</text>
+    <!-- 说明头部 -->
+    <view class="header-card">
+      <text class="ti ti-users header-icon"></text>
+      <text class="header-title">说话人管理</text>
+      <text class="header-desc">点击说话人可标注真实姓名，全局生效</text>
     </view>
 
+    <view class="list-section">
     <view v-if="!speakers.length" class="empty-hint">
       <text>暂无已注册说话人</text>
       <text class="empty-sub">上传录音后系统会自动识别说话人</text>
@@ -22,6 +25,7 @@
         <text class="ti ti-pencil edit-icon"></text>
       </view>
     </view>
+    </view>
   </view>
 </template>
 
@@ -35,7 +39,9 @@ const speakers = ref([])
 async function load() {
   try {
     speakers.value = await speakerApi.list()
-  } catch (e) {}
+  } catch (e) {
+    uni.showToast({ title: '加载失败', icon: 'none' })
+  }
 }
 
 function rename(spk) {
@@ -61,9 +67,18 @@ onShow(load)
 
 <style lang="scss" scoped>
 .page { min-height: 100vh; background: $color-bg-page; }
-.section-title { display: flex; align-items: baseline; gap: $spacing-md; padding: $spacing-lg; }
-.section-title-text { font-size: $font-lg; font-weight: 700; }
-.section-title-hint { font-size: $font-sm; color: $color-text-tertiary; }
+
+/* ── 说明头部 ── */
+.header-card {
+  background: linear-gradient(135deg, #6366F1 0%, #818CF8 100%);
+  padding: $spacing-xl $spacing-lg;
+  text-align: center;
+}
+.header-icon { font-size: 64rpx; color: #fff; display: block; margin-bottom: $spacing-md; }
+.header-title { font-size: $font-xl; font-weight: 700; color: #fff; display: block; }
+.header-desc { font-size: $font-sm; color: rgba(255,255,255,0.85); display: block; margin-top: $spacing-xs; }
+
+.list-section { padding: $spacing-lg; }
 
 .empty-hint { text-align: center; padding: $spacing-xxl; color: $color-text-tertiary;
   text { display: block; font-size: $font-base; }

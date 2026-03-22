@@ -1,6 +1,6 @@
 <template>
   <view class="page">
-    <!-- 品牌头部 + 搜索 -->
+    <!-- 品牌头部（正常滚动） -->
     <view class="brand-header">
       <view class="brand-row">
         <view>
@@ -11,19 +11,20 @@
           <text class="ti ti-plus brand-fab-icon"></text>
         </view>
       </view>
-      <view class="search-wrap">
-        <text class="ti ti-search search-icon"></text>
-        <input class="search-input" v-model="searchQuery" placeholder="搜索录音内容..."
-               placeholder-style="color:rgba(255,255,255,0.6)"
-               @input="debounceSearch" confirm-type="search" />
-      </view>
     </view>
 
-    <!-- 分类筛选 -->
-    <scroll-view v-if="usedCategories.length && !searchQuery" scroll-x class="filter-bar">
-      <view class="filter-chip" :class="{active: activeCategory === ''}" @click="filterBy('')">全部</view>
-      <view class="filter-chip" :class="{active: activeCategory === c}" v-for="c in usedCategories" :key="c" @click="filterBy(c)">{{ c }}</view>
-    </scroll-view>
+    <!-- 搜索 + 分类筛选（sticky 固定） -->
+    <view class="sticky-top">
+      <view class="search-bar">
+        <text class="ti ti-search search-icon"></text>
+        <input class="search-input" v-model="searchQuery" placeholder="搜索录音内容..."
+               @input="debounceSearch" confirm-type="search" />
+      </view>
+      <scroll-view v-if="usedCategories.length && !searchQuery" scroll-x class="filter-bar">
+        <view class="filter-chip" :class="{active: activeCategory === ''}" @click="filterBy('')">全部</view>
+        <view class="filter-chip" :class="{active: activeCategory === c}" v-for="c in usedCategories" :key="c" @click="filterBy(c)">{{ c }}</view>
+      </scroll-view>
+    </view>
 
     <!-- 搜索结果 -->
     <view v-if="searchQuery && searchResults !== null">
@@ -38,22 +39,42 @@
       </view>
     </view>
 
+    <!-- 上传中卡片（非阻塞） -->
+    <view v-if="uploadingFile" class="card rec-card uploading-card">
+      <view class="rec-header">
+        <view class="rec-icon">
+          <text class="ti ti-upload" style="font-size:40rpx;color:#4F46E5"></text>
+        </view>
+        <view class="rec-info">
+          <text class="rec-name">{{ uploadingFile }}</text>
+          <text class="rec-meta" style="color:#4F46E5">上传中 {{ uploadPercent }}%</text>
+        </view>
+      </view>
+      <view class="progress-bar-bg" style="margin-top:16rpx"><view class="progress-bar-fill" :style="{width: uploadPercent + '%'}" /></view>
+    </view>
+
     <!-- 录音列表 -->
-    <view v-else-if="filteredRecordings.length">
+    <view v-if="filteredRecordings.length || uploadingFile">
       <view class="card rec-card" v-for="r in filteredRecordings" :key="r.id"
-            @click="goDetail(r.id)" @longpress="showMenu(r.id)">
+            @click="r.status === 'completed' ? goDetail(r.id) : goDetail(r.id)" @longpress="showMenu(r.id)">
         <view class="rec-header">
           <view class="rec-icon">
             <text class="ti ti-microphone" style="font-size:40rpx;color:#4F46E5"></text>
           </view>
           <view class="rec-info">
             <text class="rec-name">{{ r.title || r.filename }}</text>
-            <text class="rec-meta">{{ relativeTime(r.created_at) }} · {{ friendlyDuration(r.duration) }}
-              <text v-if="r.status !== 'completed'" class="rec-status" :class="r.status">{{ statusLabel[r.status] }}</text>
+            <text class="rec-meta" v-if="r.status === 'completed'">{{ relativeTime(r.created_at) }} · {{ friendlyDuration(r.duration) }}</text>
+            <text class="rec-meta" v-else-if="r.status === 'processing'" style="color:#4F46E5">{{ processingStep(r.id) }}</text>
+            <text class="rec-meta" v-else>
+              <text class="rec-status" :class="r.status">{{ statusLabel[r.status] }}</text>
             </text>
           </view>
         </view>
-        <view class="rec-speakers">
+        <!-- 处理中的录音显示进度条 -->
+        <view v-if="r.status === 'processing'" class="progress-bar-bg" style="margin-top:16rpx">
+          <view class="progress-bar-fill" :style="{width: processingPercent(r.id) + '%'}" />
+        </view>
+        <view v-else class="rec-speakers">
           <text v-if="r.category && r.category !== '其他'" class="category-tag">{{ r.category }}</text>
           <text v-for="(s, i) in (r.speakers||[])" :key="s" class="speaker-tag" :class="'spk-idx-' + i">{{ s }}</text>
         </view>
@@ -79,22 +100,53 @@
 
     <!-- Tab Bar -->
 
-    <!-- 处理进度 -->
-    <view v-if="processingId" class="progress-overlay">
-      <view class="progress-container">
-        <view class="card">
-          <text class="card-title">{{ progressStep }}</text>
-          <view class="progress-bar-bg"><view class="progress-bar-fill" :style="{width: progressPercent + '%'}" /></view>
-          <text class="progress-text">{{ progressPercent }}%</text>
+    <!-- 操作菜单 -->
+    <view v-if="menuVisible" class="modal-overlay" @click.self="menuVisible = false">
+      <view class="modal-sheet">
+        <text class="modal-title">操作</text>
+        <view class="menu-item" @click="doAction('category')">
+          <text class="ti ti-tag menu-item-icon"></text>
+          <text class="menu-item-text">修改分类</text>
+        </view>
+        <view class="menu-item" @click="doAction('resummarize')">
+          <text class="ti ti-file-text menu-item-icon"></text>
+          <text class="menu-item-text">重新总结</text>
+        </view>
+        <view class="menu-item" @click="doAction('reprocess')">
+          <text class="ti ti-refresh menu-item-icon"></text>
+          <text class="menu-item-text">重新识别</text>
+          <text class="menu-item-sub">(较慢)</text>
+        </view>
+        <view class="menu-item" @click="doAction('delete')">
+          <text class="ti ti-trash menu-item-icon" style="color:#FF3B30"></text>
+          <text class="menu-item-text" style="color:#FF3B30">删除录音</text>
+        </view>
+        <view style="margin-top: 24rpx">
+          <button class="btn-outline btn-block" @click="menuVisible = false">取消</button>
         </view>
       </view>
     </view>
+
+    <!-- 分类选择 -->
+    <view v-if="catPickerVisible" class="modal-overlay" @click.self="catPickerVisible = false">
+      <view class="modal-sheet">
+        <text class="modal-title">修改分类</text>
+        <view class="cat-chips">
+          <text v-for="c in categoryNames" :key="c" class="filter-chip" @click="pickCategory(c)">{{ c }}</text>
+        </view>
+        <view style="margin-top: 24rpx">
+          <button class="btn-outline btn-block" @click="catPickerVisible = false">取消</button>
+        </view>
+      </view>
+    </view>
+
+    <!-- (进度已嵌入列表卡片，不再使用全屏遮罩) -->
   </view>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import { onShow } from '@dcloudio/uni-app'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { onShow, onHide } from '@dcloudio/uni-app'
 import { recordingApi, searchApi, categoryApi, uploadAudio } from '@/api'
 import { relativeTime, friendlyDuration } from '@/utils/format'
 
@@ -104,11 +156,23 @@ const activeCategory = ref('')
 const searchQuery = ref('')
 const searchResults = ref(null)
 const searching = ref(false)
-const processingId = ref('')
-const progressStep = ref('')
-const progressPercent = ref(0)
+
+// 上传状态（非阻塞，显示为卡片）
+const uploadingFile = ref('')
+const uploadPercent = ref(0)
+
+// 处理中录音的进度（按 recording_id 存储）
+const progressMap = ref({}) // { recId: { step, percent } }
 
 const statusLabel = { pending: '等待中', processing: '处理中', completed: '已完成', failed: '失败' }
+
+function processingStep(recId) {
+  const p = progressMap.value[recId]
+  return p ? `${p.step} ${p.percent}%` : '处理中...'
+}
+function processingPercent(recId) {
+  return progressMap.value[recId]?.percent || 0
+}
 
 const totalMinutes = computed(() =>
   Math.floor(recordings.value.reduce((s, r) => s + (r.duration || 0), 0) / 60)
@@ -132,19 +196,42 @@ function getRecTitle(id) {
 function filterBy(cat) { activeCategory.value = cat }
 
 let listRefreshTimer = null
+let progressPollers = {} // recId -> intervalId
 
 async function loadRecordings() {
   try {
     recordings.value = await recordingApi.list()
     loaded.value = true
-    // 有录音在处理中时自动刷新
-    if (recordings.value.some(r => r.status === 'processing')) {
+    // 自动为所有 processing 录音启动进度轮询
+    const processingIds = recordings.value.filter(r => r.status === 'processing').map(r => r.id)
+    processingIds.forEach(id => { if (!progressPollers[id]) startProgressPoll(id) })
+    // 有 processing 录音时定期刷新列表
+    if (processingIds.length) {
       clearTimeout(listRefreshTimer)
       listRefreshTimer = setTimeout(loadRecordings, 5000)
     }
   } catch (e) {
     uni.showToast({ title: '加载失败', icon: 'none' })
   }
+}
+
+function startProgressPoll(recId) {
+  if (progressPollers[recId]) return
+  progressPollers[recId] = setInterval(async () => {
+    try {
+      const st = await recordingApi.status(recId)
+      progressMap.value[recId] = { step: st.step, percent: Math.max(0, st.percent) }
+      if (st.percent >= 100 || st.percent < 0) {
+        clearInterval(progressPollers[recId])
+        delete progressPollers[recId]
+        delete progressMap.value[recId]
+        if (st.percent >= 100) {
+          uni.showToast({ title: '处理完成', icon: 'success' })
+        }
+        loadRecordings()
+      }
+    } catch (e) { /* continue */ }
+  }, 2000)
 }
 
 // 搜索
@@ -197,11 +284,17 @@ function chooseFile() {
   // #endif
 }
 
+// beforeunload 拦截（上传中防止用户离开）
+function onBeforeUnload(e) {
+  e.preventDefault()
+  e.returnValue = '音频正在上传中，离开将中断上传。确定离开？'
+}
+
 // #ifdef H5
 function doUploadH5(file) {
-  processingId.value = 'uploading'
-  progressStep.value = '上传中: ' + file.name
-  progressPercent.value = 0
+  uploadingFile.value = file.name
+  uploadPercent.value = 0
+  window.addEventListener('beforeunload', onBeforeUnload)
 
   const fd = new FormData()
   fd.append('file', file)
@@ -209,27 +302,27 @@ function doUploadH5(file) {
   const xhr = new XMLHttpRequest()
   xhr.open('POST', '/api/upload')
 
-  // 上传进度
   xhr.upload.onprogress = (e) => {
     if (e.lengthComputable) {
-      progressPercent.value = Math.round((e.loaded / e.total) * 100)
-      progressStep.value = `上传中: ${file.name} (${progressPercent.value}%)`
+      uploadPercent.value = Math.round((e.loaded / e.total) * 100)
     }
   }
 
   xhr.onload = () => {
+    window.removeEventListener('beforeunload', onBeforeUnload)
+    uploadingFile.value = ''
     if (xhr.status === 200) {
       const data = JSON.parse(xhr.responseText)
-      uni.showToast({ title: '上传成功，开始处理', icon: 'success' })
-      watchProgress(data.recording_id)
+      uni.showToast({ title: '上传成功，后台处理中', icon: 'success' })
+      loadRecordings() // 刷新列表，processing 卡片会自动出现
     } else {
-      processingId.value = ''
       uni.showToast({ title: '上传失败', icon: 'none' })
     }
   }
 
   xhr.onerror = () => {
-    processingId.value = ''
+    window.removeEventListener('beforeunload', onBeforeUnload)
+    uploadingFile.value = ''
     uni.showToast({ title: '上传失败', icon: 'none' })
   }
 
@@ -238,114 +331,98 @@ function doUploadH5(file) {
 // #endif
 
 async function doUploadFile(path) {
-  processingId.value = 'uploading'
-  progressStep.value = '上传中...'
-  progressPercent.value = 0
+  uploadingFile.value = path.split('/').pop()
+  uploadPercent.value = 0
 
   try {
     const data = await uploadAudio(path)
-    uni.showToast({ title: '上传成功，开始处理', icon: 'success' })
-    watchProgress(data.recording_id)
+    uni.showToast({ title: '上传成功，后台处理中', icon: 'success' })
+    loadRecordings()
   } catch (e) {
-    processingId.value = ''
     uni.showToast({ title: '上传失败', icon: 'none' })
+  } finally {
+    uploadingFile.value = ''
   }
-}
-
-function watchProgress(recId) {
-  processingId.value = recId
-  progressStep.value = '准备中...'
-  progressPercent.value = 0
-
-  const poll = setInterval(async () => {
-    try {
-      const st = await recordingApi.status(recId)
-      progressStep.value = `${st.step} (${Math.max(0, st.percent)}%)`
-      progressPercent.value = Math.max(0, st.percent)
-      if (st.percent >= 100 || st.percent < 0) {
-        clearInterval(poll)
-        processingId.value = ''
-        if (st.percent >= 100) {
-          uni.showToast({ title: '处理完成', icon: 'success' })
-          setTimeout(() => goDetail(recId), 500)
-        } else {
-          uni.showToast({ title: '处理失败', icon: 'none' })
-        }
-        loadRecordings()
-      }
-    } catch (e) { /* continue polling */ }
-  }, 1500)
 }
 
 function goDetail(id, seekTime) {
   uni.navigateTo({ url: `/pages/recordings/detail?id=${id}${seekTime ? '&seek=' + seekTime : ''}` })
 }
 
+const menuVisible = ref(false)
+const menuRecId = ref('')
+const catPickerVisible = ref(false)
+const categoryNames = ref([])
+
 function showMenu(id) {
-  uni.showActionSheet({
-    itemList: ['修改分类', '重新总结', '重新识别（较慢）', '删除录音'],
-    success: async (res) => {
-      if (res.tapIndex === 0) {
-        showCategoryPicker(id)
-      } else if (res.tapIndex === 1) {
-        uni.showToast({ title: '正在重新总结...', icon: 'none' })
-        await recordingApi.resummarize(id)
-        uni.showToast({ title: '总结已更新', icon: 'success' })
-        loadRecordings()
-      } else if (res.tapIndex === 2) {
-        await recordingApi.reprocess(id)
-        watchProgress(id)
-      } else if (res.tapIndex === 3) {
-        uni.showModal({
-          title: '确认删除',
-          content: '删除后不可恢复',
-          cancelText: '取消',
-          confirmText: '删除',
-          success: async (r) => {
-            if (r.confirm) {
-              await recordingApi.delete(id)
-              uni.showToast({ title: '已删除', icon: 'success' })
-              loadRecordings()
-            }
-          },
-        })
-      }
-    },
-  })
+  menuRecId.value = id
+  menuVisible.value = true
 }
 
-async function showCategoryPicker(recId) {
-  try {
-    const presets = await categoryApi.list()
-    const names = presets.map(p => p.name || p)
-    uni.showActionSheet({
-      itemList: names,
-      success: async (res) => {
-        const chosen = names[res.tapIndex]
-        await recordingApi.updateCategory(recId, chosen)
-        uni.showToast({ title: '分类已更新', icon: 'success' })
-        loadRecordings()
+async function doAction(action) {
+  const id = menuRecId.value
+  menuVisible.value = false
+  if (action === 'category') {
+    try {
+      const presets = await categoryApi.list()
+      categoryNames.value = presets.map(p => p.name || p)
+      catPickerVisible.value = true
+    } catch (e) {
+      uni.showToast({ title: '获取分类失败', icon: 'none' })
+    }
+  } else if (action === 'resummarize') {
+    uni.showToast({ title: '正在重新总结...', icon: 'none' })
+    await recordingApi.resummarize(id)
+    uni.showToast({ title: '总结已更新', icon: 'success' })
+    loadRecordings()
+  } else if (action === 'reprocess') {
+    await recordingApi.reprocess(id)
+    watchProgress(id)
+  } else if (action === 'delete') {
+    uni.showModal({
+      title: '确认删除',
+      content: '删除后不可恢复',
+      cancelText: '取消',
+      confirmText: '删除',
+      success: async (r) => {
+        if (r.confirm) {
+          await recordingApi.delete(id)
+          uni.showToast({ title: '已删除', icon: 'success' })
+          loadRecordings()
+        }
       },
     })
-  } catch (e) {
-    uni.showToast({ title: '获取分类失败', icon: 'none' })
   }
+}
+
+async function pickCategory(name) {
+  catPickerVisible.value = false
+  await recordingApi.updateCategory(menuRecId.value, name)
+  uni.showToast({ title: '分类已更新', icon: 'success' })
+  loadRecordings()
+}
+
+function cleanupPollers() {
+  clearTimeout(listRefreshTimer)
+  Object.keys(progressPollers).forEach(id => clearInterval(progressPollers[id]))
+  progressPollers = {}
 }
 
 onMounted(loadRecordings)
 onShow(loadRecordings)
+onHide(cleanupPollers)
+onUnmounted(cleanupPollers)
 </script>
 
 <style lang="scss" scoped>
 .page { min-height: #{"calc(100vh - var(--window-top, 0px))"}; background: $color-bg-page; padding-bottom: 140rpx; }
 
-/* ===== 品牌头部 — 固定顶部 ===== */
+/* ===== 品牌头部（正常滚动） ===== */
 .brand-header {
-  position: sticky; top: 0; z-index: 50;
   background: linear-gradient(135deg, #6366F1 0%, #818CF8 100%);
-  padding: $spacing-lg $spacing-lg $spacing-md;
+  padding: $spacing-lg;
 }
-.brand-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: $spacing-lg; }
+.brand-row { display: flex; justify-content: space-between; align-items: center; }
 .brand-title { font-size: 40rpx; font-weight: 800; color: #fff; display: block; letter-spacing: -1rpx; }
 .brand-sub { font-size: $font-xs; color: rgba(255,255,255,0.75); display: block; margin-top: 4rpx; }
 .brand-fab {
@@ -354,22 +431,27 @@ onShow(loadRecordings)
 }
 .brand-fab-icon { font-size: 36rpx; color: #fff; }
 
-.search-wrap { position: relative; }
-.search-icon { position: absolute; left: 24rpx; top: 50%; transform: translateY(-50%); font-size: 28rpx; color: rgba(255,255,255,0.7); z-index: 1; }
+/* ===== Sticky 搜索 + 筛选 ===== */
+.sticky-top { position: sticky; top: var(--window-top, 44px); z-index: 50; background: $color-bg-page; }
+
+.search-bar {
+  position: relative; padding: $spacing-md $spacing-lg;
+  background: $color-bg-page;
+}
+.search-icon { position: absolute; left: 40rpx; top: 50%; transform: translateY(-50%); font-size: 28rpx; color: $color-text-disabled; z-index: 1; }
 .search-input {
   width: 100%; height: 80rpx; padding: 0 28rpx 0 72rpx;
-  background: rgba(255,255,255,0.2); border: none;
-  border-radius: $radius-full; font-size: $font-base; color: #fff;
+  background: $color-bg-card; border: 2rpx solid $color-border;
+  border-radius: $radius-full; font-size: $font-base; color: $color-text-primary;
 }
-// 小程序用 placeholder-style
 // #ifdef H5
-.search-input::placeholder { color: rgba(255,255,255,0.6) !important; }
+.search-input::placeholder { color: $color-text-disabled !important; }
 // #endif
 
 /* ===== Filter Bar — 分类筛选 ===== */
 .filter-bar {
-  white-space: nowrap; padding: $spacing-sm $spacing-lg $spacing-md;
-  position: sticky; top: 0; z-index: 40; background: $color-bg-page;
+  white-space: nowrap; padding: 0 $spacing-lg $spacing-md;
+  background: $color-bg-page;
 }
 .filter-chip {
   display: inline-block; height: 60rpx; line-height: 60rpx;
@@ -452,14 +534,35 @@ onShow(loadRecordings)
   .fab-icon { font-size: 44rpx; font-weight: 300; }
 }
 
-/* ===== Progress ===== */
-.progress-overlay {
-  position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: 100;
-  display: flex; align-items: center; justify-content: center;
+/* ===== 内嵌进度条 ===== */
+.progress-bar-bg { width: 100%; height: 8rpx; background: #E5E7EB; border-radius: 4rpx; overflow: hidden; }
+.progress-bar-fill { height: 100%; background: linear-gradient(90deg, $color-primary, #818CF8); border-radius: 4rpx; transition: width 0.5s ease; }
+
+.uploading-card {
+  border-left-color: #818CF8 !important;
+  animation: pulse-border 1.5s ease-in-out infinite;
 }
-.progress-container { width: 80%; }
-.progress-bar-bg { width: 100%; height: 16rpx; background: #E5E7EB; border-radius: 8rpx; overflow: hidden; margin: $spacing-md 0; }
-.progress-bar-fill { height: 100%; background: linear-gradient(90deg, $color-primary, #818CF8); border-radius: 8rpx; transition: width 0.3s ease; }
-.progress-text { font-size: 26rpx; color: $color-text-secondary; text-align: center; margin-top: $spacing-md; }
-.card-title { font-size: 30rpx; font-weight: 600; margin-bottom: 12rpx; color: $color-text-primary; }
+@keyframes pulse-border {
+  0%, 100% { border-left-color: $color-primary; }
+  50% { border-left-color: #818CF8; }
+}
+
+/* ===== Modal Sheet ===== */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: 999;
+  display: flex; align-items: flex-end; justify-content: center;
+}
+.modal-sheet {
+  width: 100%; background: $color-bg-card; border-radius: $radius-xl $radius-xl 0 0;
+  padding: $spacing-xl $spacing-lg calc(#{$spacing-xl} + env(safe-area-inset-bottom));
+}
+.modal-title { font-size: $font-lg; font-weight: 700; display: block; margin-bottom: $spacing-lg; }
+.menu-item {
+  display: flex; align-items: center; gap: $spacing-lg; padding: 24rpx 0;
+  border-bottom: 1rpx solid $color-border;
+}
+.menu-item-icon { font-size: 36rpx; color: $color-text-secondary; flex-shrink: 0; }
+.menu-item-text { flex: 1; font-size: $font-base; }
+.menu-item-sub { font-size: 20rpx; color: $color-text-tertiary; }
+.cat-chips { display: flex; flex-wrap: wrap; gap: $spacing-md; }
 </style>

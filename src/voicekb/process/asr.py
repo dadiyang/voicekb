@@ -15,7 +15,10 @@ class ASREngine:
 
     def __init__(self, model_size: str = "small", device: str = "cuda",
                  compute_type: str = "float16") -> None:
-        logger.info("加载 Whisper 模型: %s (device=%s)", model_size, device)
+        # CPU 不支持 float16，自动降级
+        if device == "cpu" and compute_type == "float16":
+            compute_type = "int8"
+        logger.info("加载 Whisper 模型: %s (device=%s, compute=%s)", model_size, device, compute_type)
         self._model = WhisperModel(model_size, device=device, compute_type=compute_type)
         logger.info("Whisper 模型加载完成")
 

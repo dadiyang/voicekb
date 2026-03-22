@@ -40,7 +40,7 @@ async function load() {
     const map = {}
     prompts.forEach(p => { map[p.category] = p })
     customMap.value = map
-  } catch (e) {}
+  } catch (e) { uni.showToast({ title: '加载失败', icon: 'none' }) }
 }
 
 function editPrompt(cat) {

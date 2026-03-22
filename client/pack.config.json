@@ -1,0 +1,13 @@
+{
+  "appPlusDist": "./dist/build/app/",
+  "android": {
+    "sdk": "/usr/lib/android-sdk",
+    "applicationId": "com.voicekb.app",
+    "appKey": "",
+    "keystore": {
+      "file": "./voicekb.keystore",
+      "alias": "voicekb",
+      "password": "voicekb123"
+    }
+  }
+}

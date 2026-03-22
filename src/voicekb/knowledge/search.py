@@ -121,6 +121,7 @@ class SearchEngine:
                 seen.add(key)
                 merged.append(r)
 
-        # 按 score 排序
+        # 过滤低质量语义结果，按 score 排序
+        merged = [r for r in merged if r.score >= 0.7]
         merged.sort(key=lambda x: x.score, reverse=True)
         return merged[:limit]

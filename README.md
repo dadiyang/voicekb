@@ -1,79 +1,161 @@
-# VoiceKB — 个人录音知识库
+<h1 align="center">
+  <br>
+  VoiceKB
+  <br>
+</h1>
 
-> 把日常录音变成可搜索、可对话的个人知识库。
+<h4 align="center">Turn everyday recordings into a searchable, conversational personal knowledge base</h4>
 
-VoiceKB 是一个自托管的语音知识管理系统，将录音文件自动处理为带说话人标签的结构化文本，支持关键词搜索、语义搜索和 AI 问答。
+<p align="center">
+  <img src="https://img.shields.io/badge/Deploy-Fully%20Local-success?style=flat-square" alt="Fully Local">
+  <img src="https://img.shields.io/badge/Privacy-Data%20Never%20Leaves%20Your%20Server-blue?style=flat-square" alt="Privacy">
+  <img src="https://img.shields.io/badge/Platform-H5%20%2B%20Mini%20Program-blueviolet?style=flat-square" alt="Cross Platform">
+  <img src="https://img.shields.io/badge/license-Apache%202.0-green?style=flat-square" alt="Apache-2.0">
+</p>
 
-## 核心功能
+<p align="center">
+  <img src="docs/images/home.png" width="180" alt="Recording List">
+  <img src="docs/images/detail.png" width="180" alt="Recording Detail">
+  <img src="docs/images/search.png" width="180" alt="Full-text Search">
+  <img src="docs/images/chat.png" width="180" alt="AI Q&A">
+</p>
 
-- **语音识别 (ASR)** — 基于 faster-whisper，支持中文，GPU 加速
-- **声纹分离** — 自动区分不同说话人，跨录音识别同一人
-- **说话人标注** — 给 Speaker_XX 标注真实姓名，全局自动更新
-- **知识搜索** — 关键词 + 语义双引擎混合搜索
-- **AI 问答** — 基于录音知识库的 RAG 问答（需配置 LLM）
-- **H5 移动端** — 手机浏览器即可使用，无需安装 App
+---
 
-## 技术架构
+## What It Does
+
+Upload a recording and VoiceKB handles the rest automatically:
+
+| Capability | Description |
+|------------|-------------|
+| **Speech Recognition** | Powered by faster-whisper with high Chinese accuracy — GPU processes a 30-minute recording in under 5 minutes |
+| **Speaker Diarization** | Automatically identifies who said what, and recognizes the same speaker across multiple recordings (voice fingerprint linking) |
+| **Smart Summarization** | LLM generates meeting minutes automatically; supports per-category custom summary templates |
+| **Dual-engine Search** | Exact keyword matching + semantic vector search to locate content quickly |
+| **AI Q&A** | Ask questions about your recordings directly, with multi-turn dialogue and source citations |
+| **Dual Transcript Versions** | Raw ASR output alongside an LLM-polished fluent version, switchable with one tap |
+
+## Key Innovations
+
+- **Cross-recording Voice Fingerprint Linking** — Speaker identity is tracked not just within a single recording, but across your entire library. Label a speaker once, and they are recognized automatically in every recording.
+- **Three-tier Prompt System** — Platform default → category-level customization → per-recording override. Every layer of summarization behavior is adjustable.
+- **Summarization + Polishing in Parallel** — `asyncio.gather` runs LLM summarization and text polishing concurrently, cutting processing time in half.
+- **Fully Local Deployment** — ASR, voice fingerprinting, vector search, and LLM all run on your own server. Your recordings never leave your machine.
+
+## Architecture
 
 ```
-消费层: H5 移动端 + REST API
-知识层: SQLite FTS + ChromaDB 向量搜索 + LLM RAG
-处理层: faster-whisper ASR + resemblyzer 声纹 + 谱聚类
-存储层: SQLite + Markdown 双写
+┌─────────────────────────────────────────────┐
+│  Consumer    uni-app H5 / Mini Program / REST API  │
+├─────────────────────────────────────────────┤
+│  Knowledge   SQLite FTS5 + ChromaDB + LLM RAG      │
+├─────────────────────────────────────────────┤
+│  Processing  faster-whisper + pyannote.audio + wespeaker│
+├─────────────────────────────────────────────┤
+│  Storage     SQLite + Markdown dual-write           │
+└─────────────────────────────────────────────┘
 ```
 
-## 快速开始
+## Quick Start
 
-```bash
-# 1. 创建虚拟环境
-python3 -m venv --system-site-packages venv
-source venv/bin/activate
-
-# 2. 安装依赖
-pip install -i https://pypi.tuna.tsinghua.edu.cn/simple \
-  faster-whisper chromadb fastapi uvicorn[standard] \
-  python-multipart jinja2 scikit-learn resemblyzer \
-  pydantic pydantic-settings aiofiles websockets \
-  sentence-transformers
-
-# 3. 启动服务
-PYTHONPATH=src python -m uvicorn voicekb.api.app:app \
-  --host 0.0.0.0 --port 8080
-
-# 4. 手机浏览器访问 http://<服务器IP>:8080
-```
-
-## 配置
-
-通过 `.env` 文件或环境变量配置：
-
-| 变量 | 默认值 | 说明 |
-|------|--------|------|
-| `VOICEKB_WHISPER_MODEL` | `small` | Whisper 模型大小 |
-| `VOICEKB_WHISPER_DEVICE` | `cuda` | 运行设备 |
-| `VOICEKB_LLM_BACKEND` | `none` | LLM 后端 (`openai_compatible` 或 `none`) |
-| `VOICEKB_LLM_BASE_URL` | `http://localhost:8000/v1` | LLM API 地址 |
-| `VOICEKB_PORT` | `8080` | 服务端口 |
-
-## 系统要求
+### Prerequisites
 
 - Python 3.11+
-- NVIDIA GPU (推荐，ASR 和声纹加速)
-- 4GB+ VRAM (small 模型) 或 10GB+ (large-v3)
-- 8GB+ RAM
+- 8 GB+ RAM
+- GPU optional (10× faster with GPU; works on CPU too)
 
-## 项目结构
+### 1. Install
 
-```
-src/voicekb/
-├── config.py          # 配置管理
-├── models.py          # 数据模型
-├── process/           # 处理层：ASR + 声纹分离
-├── knowledge/         # 知识层：存储 + 搜索 + RAG
-├── api/               # API 层：FastAPI
-└── web/               # 前端：H5 移动端
+```bash
+git clone https://github.com/dadiyang/voicekb.git
+cd voicekb
+python3 -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
 ```
 
-## 开源协议
+### 2. Configure
 
-MIT
+Copy the example config and edit as needed:
+
+```bash
+cp .env.example .env
+```
+
+### 3. Start
+
+```bash
+python -m uvicorn voicekb.api.app:app --host 0.0.0.0 --port 8080
+```
+
+Open `http://<server-ip>:8080` in your mobile browser to get started.
+
+## Deployment Modes
+
+VoiceKB supports two deployment modes — choose based on your hardware:
+
+### Mode A: With GPU — Fully Local (Recommended)
+
+All computation runs locally; zero data egress. Requires an NVIDIA GPU (4 GB+ VRAM).
+
+```bash
+# .env
+VOICEKB_WHISPER_DEVICE=cuda
+VOICEKB_LLM_BASE_URL=http://localhost:18090/v1
+VOICEKB_LLM_MODEL=Qwen/Qwen3-8B
+VOICEKB_LLM_API_KEY=not-needed
+```
+
+For local LLM, we recommend deploying Qwen3-8B via [vLLM](https://github.com/vllm-project/vllm) or [Ollama](https://ollama.ai).
+
+### Mode B: Without GPU — CPU + Cloud LLM
+
+ASR and speaker diarization run on CPU (slower but functional); LLM calls go to a cloud API.
+
+```bash
+# .env
+VOICEKB_WHISPER_DEVICE=cpu
+VOICEKB_LLM_BASE_URL=https://api.deepseek.com/v1   # or Qwen, OpenAI, etc.
+VOICEKB_LLM_MODEL=deepseek-chat
+VOICEKB_LLM_API_KEY=sk-your-api-key
+```
+
+> Any service compatible with the OpenAI Chat Completions API works out of the box — no code changes required.
+
+### Performance Comparison
+
+| Stage | GPU (RTX 3060+) | CPU |
+|-------|-----------------|-----|
+| ASR — 30-minute recording | ~3 min | ~30 min |
+| Speaker diarization | ~10 sec | ~30 sec |
+| LLM summarization (local 8B) | ~15 sec | N/A (cloud API ~5 sec) |
+
+## Configuration
+
+Configure via `.env` file or environment variables (prefix `VOICEKB_`):
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `WHISPER_MODEL` | `small` | Whisper model size (`small` / `medium` / `large-v3`) |
+| `WHISPER_DEVICE` | `cuda` | Compute device (`cuda` / `cpu`) |
+| `LLM_BACKEND` | `openai_compatible` | LLM backend (`openai_compatible` / `none`) |
+| `LLM_BASE_URL` | `http://localhost:8000/v1` | LLM API endpoint |
+| `LLM_MODEL` | `Qwen/Qwen3-8B` | Model name |
+| `LLM_API_KEY` | `not-needed` | API key (not required for local deployment) |
+| `PORT` | `8080` | Service port |
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|------------|
+| Frontend | uni-app (Vue 3) — compiles to both H5 and WeChat Mini Program |
+| Backend | FastAPI + SQLite + ChromaDB |
+| ASR | faster-whisper (CTranslate2 optimized) |
+| Speaker | pyannote.audio 3.1 (neural segmentation + wespeaker embeddings) |
+| Vector Search | ChromaDB + bge-small-zh-v1.5 |
+| LLM | Pluggable — local Qwen3-8B or any OpenAI-compatible API |
+
+## License
+
+[Apache-2.0](LICENSE)
+
+[中文文档](README_zh.md)

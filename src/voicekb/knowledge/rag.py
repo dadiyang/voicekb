@@ -236,8 +236,9 @@ class RAGEngine:
         # 清洗：合并同一说话人的连续碎片段
         cleaned = self._clean_segments(recording.segments)
 
-        # 短录音（< 80 段）：直接总结
-        if len(cleaned) <= 80:
+        # 按总字数判断是否需要分块（8000 字以内直接总结，减少 LLM 调用）
+        total_chars = sum(len(s.text) for s in cleaned)
+        if total_chars <= 8000:
             transcript = "\n".join(
                 f"{s.speaker_id} ({int(s.start)//60}:{int(s.start)%60:02d}): {s.text}"
                 for s in cleaned
@@ -321,8 +322,8 @@ class RAGEngine:
         """
         merged = self._clean_segments(segments)
 
-        # 每批最多 10 段一起润色
-        batches = self._split_to_chunks(merged, max_per_chunk=10)
+        # 每批最多 30 段一起润色（减少 LLM 调用次数）
+        batches = self._split_to_chunks(merged, max_per_chunk=30)
         polished_map: dict[str, str] = {}  # "start_end" -> polished text
 
         for batch in batches:
@@ -337,7 +338,7 @@ class RAGEngine:
                 "输出格式：每行 [序号] 润色后的文本\n\n"
                 f"{texts}"
             )
-            result = await self._llm.generate(prompt, max_tokens=2000)
+            result = await self._llm.generate(prompt, max_tokens=4000)
 
             # 解析输出
             if result:

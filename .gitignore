@@ -1,6 +1,51 @@
-venv/
-data/
+# Python
 __pycache__/
 *.pyc
+*.egg-info/
+venv/
+.venv/
+
+# Data
+data/
+*.db
+
+# Build
+client/dist/
+client/node_modules/
+
+# Environment
 .env
+.env.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Test screenshots（包含个人数据截图）
 tests/screenshots/
+
+# HuggingFace
+.huggingface/
+
+# Playwright
+.playwright-mcp/
+
+# Internal docs（含个人信息和比赛策略）
+CLAUDE.md
+docs/plans/
+docs/knowledge/
+!docs/images/
+
+# Build artifacts
+*.apk
+*.keystore
+client/static/

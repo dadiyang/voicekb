@@ -53,7 +53,7 @@
     </view>
     </view>
 
-    <text class="version">VoiceKB v0.1.0 · MIT License</text>
+    <text class="version">VoiceKB v0.1.0 · Apache-2.0</text>
 
   </view>
 </template>
@@ -127,7 +127,7 @@ function _old_manageVocab() {
         const catLabel = catRes.tapIndex === 0 ? '人名' : '术语'
         const filtered = vocab.filter(v => v.category === category)
         const placeholder = category === 'person'
-          ? '输入人名（如：周神、张三）'
+          ? '输入人名（如：李明、王芳）'
           : '输入术语（如：K8s、微服务）'
 
         // 展示该类别下的列表
@@ -233,7 +233,7 @@ function showAbout() {
 function _old_showAbout() {
   uni.showModal({
     title: 'VoiceKB v0.1.0',
-    content: '开源个人录音知识库\n\n把日常录音变成可搜索、可对话的个人知识库。\n\n核心能力\n\n• 智能语音识别，自动区分说话人\n• 跨录音声纹识别，同一人自动关联\n• 关键词 + 语义双引擎搜索\n• AI 智能问答，基于录音内容回答问题\n• 完全本地部署，数据不出你的服务器\n\n技术栈：faster-whisper · resemblyzer · ChromaDB · Qwen3\n协议：MIT License',
+    content: '开源个人录音知识库\n\n把日常录音变成可搜索、可对话的个人知识库。\n\n核心能力\n\n• 智能语音识别，自动区分说话人\n• 跨录音声纹识别，同一人自动关联\n• 关键词 + 语义双引擎搜索\n• AI 智能问答，基于录音内容回答问题\n• 完全本地部署，数据不出你的服务器\n\n技术栈：faster-whisper · resemblyzer · ChromaDB · Qwen3\n协议：Apache-2.0',
     showCancel: false,
     confirmText: '知道了',
   })

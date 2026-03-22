@@ -5,7 +5,7 @@ build-backend = "setuptools.backends._legacy:_Backend"
 [project]
 name = "voicekb"
 version = "0.1.0"
-description = "把日常录音变成可搜索、可对话的个人知识库"
+description = "Turn voice recordings into a searchable, AI-queryable personal knowledge base"
 requires-python = ">=3.11"
 dependencies = [
     "faster-whisper>=1.0",

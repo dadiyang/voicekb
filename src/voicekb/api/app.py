@@ -60,7 +60,12 @@ async def lifespan(app: FastAPI):
     logger.info("VoiceKB 关闭中...")
 
 
-app = FastAPI(title="VoiceKB", version="0.1.0", lifespan=lifespan)
+app = FastAPI(
+    title="VoiceKB",
+    description="Personal voice recording knowledge base with ASR, speaker diarization, and RAG-based Q&A",
+    version="0.1.0",
+    lifespan=lifespan,
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -192,33 +197,37 @@ async def _process_recording(recording_id: str, audio_path: Path) -> None:
             None, _pipeline.process, audio_path, recording_id, progress_cb,
         )
 
-        # LLM 第 1 步：标题 + 分类（合并为 1 次调用）
-        _progress[recording_id] = {"step": "正在分析内容...", "percent": 90}
+        # LLM 第 1 步：标题 + 分类
+        _progress[recording_id] = {"step": "正在分析内容...", "percent": 70}
         presets = _store.get_category_presets()
         existing_cats = [p["name"] for p in presets]
         title, category = await _rag.classify_and_title(recording, existing_cats)
         recording.title = title
         recording.category = category
 
-        # LLM 第 2 步：三层 prompt 优先级：录音级 > 分类级 > 平台默认
-        _progress[recording_id] = {"step": "正在写总结...", "percent": 94}
-        # 检查是否有录音级自定义（从已有记录读取）
+        # LLM 第 2+3 步：总结和润色并行执行（互不依赖）
+        _progress[recording_id] = {"step": "正在生成摘要和润色文本...", "percent": 75}
         existing_rec = _store.get_recording(recording_id)
         rec_prompt = existing_rec.custom_prompt if existing_rec else ""
         custom_prompt = rec_prompt or _store.get_summary_prompt(category)
-        summary = await _rag.summarize_recording(recording, custom_prompt=custom_prompt)
-        # 保留录音级 prompt
+
+        async def _do_summary():
+            return await _rag.summarize_recording(recording, custom_prompt=custom_prompt)
+
+        async def _do_polish():
+            try:
+                return await _rag.polish_segments(recording.segments)
+            except Exception:
+                logger.error("润色转写失败，保留原文", exc_info=True)
+                return recording.segments
+
+        summary_result, polished_result = await asyncio.gather(_do_summary(), _do_polish())
+
+        recording.summary = summary_result
         if rec_prompt:
             recording.custom_prompt = rec_prompt
-        recording.summary = summary
-
-        # LLM 第 3 步：润色转写（去口语噪音，生成流畅版）
-        _progress[recording_id] = {"step": "正在润色文本...", "percent": 97}
-        try:
-            polished = await _rag.polish_segments(recording.segments)
-            recording.segments = polished
-        except Exception:
-            logger.error("润色转写失败，保留原文", exc_info=True)
+        recording.segments = polished_result
+        _progress[recording_id] = {"step": "即将完成...", "percent": 98}
 
         # 保存结果
         _store.save_recording(recording)
@@ -298,6 +307,14 @@ async def resummarize_recording(recording_id: str):
     if not rec.segments:
         return JSONResponse({"error": "该录音没有转写内容"}, status_code=400)
 
+    # 如果标题还是原始文件名，重新生成标题和分类
+    if rec.title == rec.filename:
+        existing_cats = [c.name if hasattr(c, 'name') else c for c in _store.get_categories()]
+        title, category = await _rag.classify_and_title(rec, existing_cats)
+        rec.title = title
+        if category:
+            rec.category = category
+
     # 三层 prompt 优先级
     custom_prompt = rec.custom_prompt or _store.get_summary_prompt(rec.category)
     summary = await _rag.summarize_recording(rec, custom_prompt=custom_prompt)
@@ -336,7 +353,7 @@ async def delete_recording(recording_id: str):
         if existing and existing["ids"]:
             col.delete(ids=existing["ids"])
     except Exception:
-        pass
+        logger.warning("清理向量索引失败: %s", recording_id, exc_info=True)
 
     logger.info("删除录音: %s", recording_id)
     return {"deleted": True}
