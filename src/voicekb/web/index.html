@@ -395,6 +395,17 @@ a { color: var(--color-primary); text-decoration: none; }
   font-size: 11px; color: var(--color-text-tertiary); text-align: center; margin-top: 4px;
 }
 
+/* Text mode toggle */
+.text-mode-btn {
+  padding: 3px 10px; border-radius: var(--radius-full); font-size: 11px;
+  color: var(--color-text-tertiary); cursor: pointer; font-weight: 500;
+  transition: all 0.15s;
+}
+.text-mode-btn.active {
+  background: var(--color-primary); color: #fff;
+  box-shadow: 0 1px 3px rgba(79,70,229,0.2);
+}
+
 /* Transcript clickable */
 .transcript-item { cursor: pointer; padding: 4px 0; border-radius: var(--radius-sm); transition: background 0.15s; }
 .transcript-item:active { background: var(--color-primary-light); }
@@ -823,23 +834,37 @@ function renderDetail(rec) {
   (rec.speakers||[]).forEach(s => { speakerColors[s] = colorIdx++; });
 
   // 合并连续同一说话人的发言，减少视觉重复
+  // 合并连续同一说话人发言 + 收集润色版本
   const merged = [];
   (rec.segments||[]).forEach((seg, idx) => {
     const last = merged[merged.length - 1];
     if (last && last.speaker_id === seg.speaker_id && seg.start - last.end < 3) {
       last.texts.push(seg.text);
+      if (seg.text_polished) last.polished.push(seg.text_polished);
       last.end = seg.end;
       last.indices.push(idx);
     } else {
-      merged.push({speaker_id: seg.speaker_id, start: seg.start, end: seg.end, texts: [seg.text], indices: [idx]});
+      merged.push({
+        speaker_id: seg.speaker_id, start: seg.start, end: seg.end,
+        texts: [seg.text],
+        polished: seg.text_polished ? [seg.text_polished] : [],
+        indices: [idx],
+      });
     }
   });
+
+  const hasPolished = merged.some(g => g.polished.length > 0);
+  // 存储当前录音的合并数据供切换用
+  window._currentMerged = merged;
+  window._currentSpeakerColors = speakerColors;
 
   const segments = merged.map(g => {
     const ci = speakerColors[g.speaker_id] ?? 0;
     const ts = `${String(Math.floor(g.start/60)).padStart(2,'0')}:${String(Math.floor(g.start%60)).padStart(2,'0')}`;
     const initial = g.speaker_id.charAt(0) || 'S';
     const firstIdx = g.indices[0];
+    // 默认显示润色版（有的话），否则原文
+    const displayText = (hasPolished && g.polished.length) ? g.polished.join('<br>') : g.texts.join('<br>');
     return `
       <div class="transcript-item" data-start="${g.start}" data-end="${g.end}" data-idx="${firstIdx}" onclick="seekAudio(${g.start}, ${firstIdx})">
         <div class="transcript-avatar spk-${ci % 5}">${initial}</div>
@@ -848,7 +873,7 @@ function renderDetail(rec) {
             <span class="speaker-tag" onclick="event.stopPropagation();showRenameModal('${g.speaker_id}')" style="padding:1px 6px;font-size:11px">${g.speaker_id}</span>
             <span class="ts">${ts}</span>
           </div>
-          <div class="transcript-text">${g.texts.join('<br>')}</div>
+          <div class="transcript-text" data-raw="${encodeURIComponent(g.texts.join('<br>'))}" data-polished="${encodeURIComponent(g.polished.join('<br>') || '')}">${displayText}</div>
         </div>
       </div>`;
   }).join('');
@@ -880,10 +905,13 @@ function renderDetail(rec) {
         <div class="summary-text">${formatMarkdown(rec.summary)}</div>
       </div>` : ''}
     <div style="padding:0 16px;margin-bottom:12px">
-      <div style="font-size:15px;font-weight:600">对话记录</div>
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div style="font-size:15px;font-weight:600">对话记录</div>
+        ${hasPolished ? '<div style="display:flex;gap:4px;background:var(--color-bg-hover);border-radius:var(--radius-full);padding:2px"><span class="text-mode-btn active" onclick="setTextMode(\'polished\')">流畅</span><span class="text-mode-btn" onclick="setTextMode(\'raw\')">原文</span></div>' : ''}
+      </div>
       ${(rec.speakers||[]).some(s => s.startsWith('说话人')) ? '<div style="font-size:11px;color:var(--color-text-tertiary);margin-top:4px">点击说话人标签可标注真实姓名</div>' : ''}
     </div>
-    <div class="transcript">${segments}</div>`;
+    <div class="transcript" id="transcriptContainer">${segments}</div>`;
 
   // 音频播放时自动高亮当前片段
   const audio = document.getElementById('audioPlayer');
@@ -903,6 +931,21 @@ function renderDetail(rec) {
       });
     });
   }
+}
+
+function setTextMode(mode) {
+  // 切换原文/流畅版
+  document.querySelectorAll('.text-mode-btn').forEach(b => b.classList.remove('active'));
+  document.querySelector(`.text-mode-btn[onclick*="${mode}"]`)?.classList.add('active');
+  document.querySelectorAll('.transcript-text').forEach(el => {
+    const raw = decodeURIComponent(el.dataset.raw || '');
+    const polished = decodeURIComponent(el.dataset.polished || '');
+    if (mode === 'raw') {
+      el.innerHTML = raw || el.innerHTML;
+    } else {
+      el.innerHTML = (polished || raw) || el.innerHTML;
+    }
+  });
 }
 
 function seekAudio(startTime, idx) {

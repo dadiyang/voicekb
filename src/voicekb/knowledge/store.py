@@ -52,6 +52,7 @@ class RecordingStore:
                 start_time REAL NOT NULL,
                 end_time REAL NOT NULL,
                 text TEXT NOT NULL,
+                text_polished TEXT DEFAULT '',
                 speaker_id TEXT NOT NULL,
                 confidence REAL DEFAULT 1.0
             );
@@ -164,10 +165,10 @@ class RecordingStore:
 
         for seg in recording.segments:
             self._conn.execute(
-                "INSERT INTO segments (recording_id, start_time, end_time, text, speaker_id, confidence) "
-                "VALUES (?, ?, ?, ?, ?, ?)",
+                "INSERT INTO segments (recording_id, start_time, end_time, text, text_polished, speaker_id, confidence) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
                 (recording.id, seg.start, seg.end, seg.text,
-                 seg.speaker_id, seg.confidence),
+                 seg.text_polished, seg.speaker_id, seg.confidence),
             )
 
         self._conn.commit()
@@ -263,7 +264,9 @@ class RecordingStore:
             segments=[
                 Segment(
                     start=s["start_time"], end=s["end_time"],
-                    text=s["text"], speaker_id=s["speaker_id"],
+                    text=s["text"],
+                    text_polished=s["text_polished"] if "text_polished" in s.keys() else "",
+                    speaker_id=s["speaker_id"],
                     confidence=s["confidence"],
                 )
                 for s in segments

@@ -11,6 +11,7 @@ class Segment(BaseModel):
     start: float
     end: float
     text: str
+    text_polished: str = ""  # LLM 润色后的流畅版（空=未润色）
     speaker_id: str  # "SPEAKER_00" 或注册后的真名
     confidence: float = 1.0
 

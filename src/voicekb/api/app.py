@@ -215,6 +215,14 @@ async def _process_recording(recording_id: str, audio_path: Path) -> None:
             recording.custom_prompt = rec_prompt
         recording.summary = summary
 
+        # LLM 第 3 步：润色转写（去口语噪音，生成流畅版）
+        _progress[recording_id] = {"step": "正在润色文本...", "percent": 97}
+        try:
+            polished = await _rag.polish_segments(recording.segments)
+            recording.segments = polished
+        except Exception:
+            logger.error("润色转写失败，保留原文", exc_info=True)
+
         # 保存结果
         _store.save_recording(recording)
         progress_cb("处理完成", 100)

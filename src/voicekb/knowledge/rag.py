@@ -313,3 +313,62 @@ class RAGEngine:
         for i in range(0, len(segments), max_per_chunk):
             chunks.append(segments[i:i + max_per_chunk])
         return chunks
+
+    async def polish_segments(self, segments: list) -> list:
+        """润色转写文本：去除口语噪音，保持语义不变。
+
+        按合并后的发言段批量处理，减少 LLM 调用次数。
+        """
+        merged = self._clean_segments(segments)
+
+        # 每批最多 10 段一起润色
+        batches = self._split_to_chunks(merged, max_per_chunk=10)
+        polished_map: dict[str, str] = {}  # "start_end" -> polished text
+
+        for batch in batches:
+            texts = "\n".join(
+                f"[{i}] {s.text}" for i, s in enumerate(batch)
+            )
+            prompt = (
+                "以下是录音转写的原始文本，包含口语噪音（嗯、啊、那个、就是说等）、"
+                "重复、口误和不完整的句子。\n\n"
+                "请逐条润色为流畅自然的书面表达，保持原始语义完全不变。\n"
+                "不要添加原文没有的信息，不要改变说话人的立场和观点。\n"
+                "输出格式：每行 [序号] 润色后的文本\n\n"
+                f"{texts}"
+            )
+            result = await self._llm.generate(prompt, max_tokens=2000)
+
+            # 解析输出
+            if result:
+                for line in result.strip().split("\n"):
+                    line = line.strip()
+                    if line.startswith("[") and "]" in line:
+                        try:
+                            idx_str = line[1:line.index("]")]
+                            idx = int(idx_str)
+                            polished_text = line[line.index("]") + 1:].strip()
+                            if 0 <= idx < len(batch) and polished_text:
+                                key = f"{batch[idx].start}_{batch[idx].end}"
+                                polished_map[key] = polished_text
+                        except (ValueError, IndexError):
+                            continue
+
+        # 将润色结果写回原始 segments
+        result_segments = []
+        for seg in segments:
+            seg_copy = seg.model_copy()
+            # 找到该 segment 所属的合并段
+            for m in merged:
+                if m.start <= seg.start and seg.end <= m.end + 0.1:
+                    key = f"{m.start}_{m.end}"
+                    if key in polished_map:
+                        # 如果是合并段的一部分，整段的润色文本分配给第一个 segment
+                        if abs(seg.start - m.start) < 0.1:
+                            seg_copy.text_polished = polished_map[key]
+                        else:
+                            seg_copy.text_polished = ""  # 被合并的后续段标记为空
+                    break
+            result_segments.append(seg_copy)
+
+        return result_segments
