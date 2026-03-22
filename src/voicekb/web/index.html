@@ -1183,6 +1183,9 @@ const PROMPT_VARS = [
 
 // 从摘要卡片或"我的"页面进入编辑器
 async function openPromptEditor(category, recordingId) {
+  // 规范化参数
+  category = category || '_default';
+  recordingId = recordingId || '';  // 确保是字符串，不是 undefined
   const catLabel = c => c === '_default' ? '通用' : c;
 
   // 获取三层 prompt
@@ -1190,8 +1193,10 @@ async function openPromptEditor(category, recordingId) {
   const catPrompt = allPrompts.find(p => p.category === category);
   let recPrompt = '';
   if (recordingId) {
-    const rec = await api(`/api/recordings/${recordingId}`);
-    recPrompt = rec.custom_prompt || '';
+    try {
+      const rec = await api(`/api/recordings/${recordingId}`);
+      recPrompt = rec.custom_prompt || '';
+    } catch(e) {}
   }
   let builtinText = '';
   try {
@@ -1199,10 +1204,11 @@ async function openPromptEditor(category, recordingId) {
     builtinText = resp.prompt || '';
   } catch(e) {}
 
-  // 当前生效的 prompt 和来源
-  const activePrompt = recPrompt || catPrompt?.prompt || builtinText;
+  // 当前生效的 prompt（一定不为空，至少有 builtin）
+  const activePrompt = recPrompt || catPrompt?.prompt || builtinText || '请总结这段录音的关键内容。';
   const activeSource = recPrompt ? 'recording' : catPrompt ? 'category' : 'builtin';
-  const hasRecScope = recordingId; // 是否从具体录音进入（支持录音级）
+  const hasRecScope = !!recordingId;
+  const fromProfile = !recordingId;
 
   // 全屏编辑视图
   const viewId = recordingId ? 'viewDetail' : 'viewProfile';
@@ -1226,26 +1232,33 @@ async function openPromptEditor(category, recordingId) {
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
         返回
       </div>
-      <div style="font-size:18px;font-weight:700;margin:12px 0 16px">调整总结方式</div>
+      <div style="font-size:18px;font-weight:700;margin:12px 0 6px">调整总结方式</div>
+      <div style="font-size:13px;color:var(--color-text-tertiary);margin-bottom:16px">${catLabel(category)}${activeSource !== 'builtin' ? ' · <span style="color:var(--color-primary)">已自定义</span>' : ''}</div>
 
-      ${scopeHtml}
+      <div style="font-size:13px;color:var(--color-text-secondary);margin-bottom:8px">告诉 AI 你希望怎么总结这类录音：</div>
+      <textarea id="promptTextarea" rows="6" style="width:100%;border:1.5px solid var(--color-border);border-radius:var(--radius-lg);padding:12px;font-size:14px;font-family:inherit;resize:vertical;outline:none;color:var(--color-text-primary);line-height:1.7;background:var(--color-bg-card)" placeholder="例如：&#10;• 重点列出行动项和负责人&#10;• 用表格形式整理决策&#10;• 提取关键数据和数字">${activePrompt}</textarea>
 
-      <div style="font-size:11px;color:var(--color-text-tertiary);margin-bottom:8px">告诉 AI 你希望怎么总结。输入 @ 插入变量，对话内容会自动附加。</div>
-      <div style="position:relative">
-        <div class="prompt-editor" id="promptEditor" contenteditable="true"
-             data-placeholder="例如：请提取关键决策和行动项..." oninput="onPromptInput(event)"></div>
-        <div id="varDropdown" class="var-dropdown hidden"></div>
-      </div>
-
-      <button class="btn btn-primary btn-block" style="margin-top:14px" id="promptSaveBtn"
-        onclick="savePromptWithScope('${category.replace(/'/g,"\\'")}', '${recordingId||''}')">
-        保存${recordingId ? '并重新总结' : ''}
-      </button>
+      ${hasRecScope ? `
+        <div style="display:flex;gap:8px;margin-top:14px">
+          <button class="btn btn-primary" style="flex:1" onclick="savePromptWithScope('${category.replace(/'/g,"\\'")}', '${recordingId}', 'this')">保存并重新总结</button>
+        </div>
+        <button class="btn btn-outline btn-block" style="margin-top:8px" onclick="savePromptWithScope('${category.replace(/'/g,"\\'")}', '${recordingId}', 'all')">应用到所有「${catLabel(category)}」类</button>
+      ` : `
+        <button class="btn btn-primary btn-block" style="margin-top:14px" onclick="savePromptWithScope('${category.replace(/'/g,"\\'")}', '', 'all')">保存</button>
+      `}
 
       ${activeSource !== 'builtin' ? `
-        <button class="btn btn-outline btn-block" style="margin-top:8px"
-          onclick="resetToDefault(${catPrompt?.id || 'null'})">恢复为平台默认内容</button>` : ''}
+        <div style="text-align:center;margin-top:12px">
+          <span style="font-size:12px;color:var(--color-text-tertiary);cursor:pointer;text-decoration:underline" onclick="resetToDefault(${catPrompt?.id || 'null'})">恢复默认</span>
+        </div>` : ''}
     </div>`;
+
+  // 清除另一个 view 的残留状态，防止返回跳错
+  if (fromProfile) {
+    document.getElementById('viewDetail')._prevRecId = '';
+  } else {
+    document.getElementById('viewProfile')._prevHtml = null;
+  }
 
   // 记住上下文
   view._prevHtml = prevHtml;
@@ -1264,32 +1277,29 @@ function setScope(scope) {
   document.getElementById('scopeAll')?.classList.toggle('active', scope === 'all');
 }
 
-async function savePromptWithScope(category, recordingId) {
-  const editor = document.getElementById('promptEditor');
-  if (!editor) return;
-  const prompt = editorToPrompt(editor);
-  if (!prompt) { showToast('请输入总结指令'); return; }
+async function savePromptWithScope(category, recordingId, scope) {
+  const textarea = document.getElementById('promptTextarea');
+  if (!textarea) return;
+  const prompt = textarea.value.trim();
+  if (!prompt) { showToast('请输入总结要求'); return; }
 
-  if (promptScope === 'this' && recordingId) {
-    // 录音级：只保存到这条录音
+  if (scope === 'this' && recordingId) {
     await api(`/api/recordings/${recordingId}/prompt`, {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({prompt}),
     });
+    showToast('已保存，正在重新总结...');
+    await api(`/api/recordings/${recordingId}/reprocess`, {method: 'POST'});
+    restoreDetail();
   } else {
-    // 分类级：保存到分类 prompt
     await api('/api/summary-prompts', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({category, prompt}),
     });
-  }
-  showToast('已保存');
-
-  if (recordingId) {
-    await api(`/api/recordings/${recordingId}/reprocess`, {method: 'POST'});
-    showToast('正在重新总结...');
-    restoreDetail();
-  } else {
+    showToast('已保存' + (recordingId ? '，正在重新总结...' : ''));
+    if (recordingId) {
+      await api(`/api/recordings/${recordingId}/reprocess`, {method: 'POST'});
+    }
     restoreDetail();
   }
 }
