@@ -756,22 +756,39 @@ async function doSearch() {
   }
 }
 
-/* ── Chat View ─────────────────────────────────────────────────────── */
-function initChatView() {
+/* ── Chat View — 多轮对话 + 历史持久化 ─────────────────────────────── */
+let chatConversationId = 'default';
+let chatInitialized = false;
+
+async function initChatView() {
   const view = document.getElementById('viewChat');
-  if (view.querySelector('.chat-messages')) return;
   view.innerHTML = `
-    <div class="chat-messages" id="chatMessages">
-      <div class="chat-msg ai">
-        <div class="bubble">你好！我是 VoiceKB 智能助手。你可以问我关于录音内容的任何问题，比如"张三说了什么关于预算的内容？"</div>
-      </div>
-    </div>
+    <div class="chat-messages" id="chatMessages"></div>
     <div class="chat-input-bar">
       <input class="chat-input" id="chatInput" placeholder="输入你的问题..." onkeypress="if(event.key==='Enter')sendChat()">
       <button class="chat-send" onclick="sendChat()">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
       </button>
     </div>`;
+
+  // 加载历史对话
+  const msgs = document.getElementById('chatMessages');
+  try {
+    const history = await api(`/api/chat/history?conversation_id=${chatConversationId}&limit=50`);
+    if (history.length === 0) {
+      msgs.innerHTML = `<div class="chat-msg ai"><div class="bubble">你好！我是 VoiceKB 智能助手。\n你可以跟我闲聊，也可以问录音相关的问题，比如"预算是怎么分配的？"</div></div>`;
+    } else {
+      history.forEach(m => {
+        const cls = m.role === 'user' ? 'user' : 'ai';
+        let html = m.content.replace(/\n/g, '<br>');
+        msgs.innerHTML += `<div class="chat-msg ${cls}"><div class="bubble">${html}</div></div>`;
+      });
+    }
+  } catch(e) {
+    msgs.innerHTML = `<div class="chat-msg ai"><div class="bubble">你好！有什么可以帮你的？</div></div>`;
+  }
+  msgs.scrollTop = msgs.scrollHeight;
+  chatInitialized = true;
 }
 
 async function sendChat() {
@@ -789,7 +806,7 @@ async function sendChat() {
     const result = await api('/api/ask', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({question: q}),
+      body: JSON.stringify({question: q, conversation_id: chatConversationId}),
     });
 
     document.getElementById('chatLoading')?.remove();

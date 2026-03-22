@@ -83,6 +83,7 @@ class RenameRequest(BaseModel):
 
 class AskRequest(BaseModel):
     question: str
+    conversation_id: str | None = None  # 多轮对话 ID
 
 
 # ── API 路由 ──────────────────────────────────────────────────────────────
@@ -268,11 +269,93 @@ async def search(q: str = "", type: str = "hybrid", limit: int = 20):
     return [r.model_dump() for r in results]
 
 
+# ── 对话历史存储 ──────────────────────────────────────────────────────────
+import json as _json
+import sqlite3 as _sqlite3
+
+def _get_chat_db():
+    db = _sqlite3.connect(str(settings.data_dir / "chat.db"), check_same_thread=False)
+    db.execute("""CREATE TABLE IF NOT EXISTS chat_messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        conversation_id TEXT NOT NULL,
+        role TEXT NOT NULL,
+        content TEXT NOT NULL,
+        sources TEXT DEFAULT '[]',
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )""")
+    db.execute("CREATE INDEX IF NOT EXISTS idx_chat_conv ON chat_messages(conversation_id)")
+    db.commit()
+    return db
+
+_chat_db = None
+
+def _ensure_chat_db():
+    global _chat_db
+    if _chat_db is None:
+        _chat_db = _get_chat_db()
+    return _chat_db
+
+
 @app.post("/api/ask")
 async def ask_question(req: AskRequest):
     assert _rag is not None
-    result = await _rag.answer(req.question)
+    from datetime import datetime as _dt
+
+    conv_id = req.conversation_id or "default"
+    db = _ensure_chat_db()
+
+    # 加载历史对话
+    rows = db.execute(
+        "SELECT role, content FROM chat_messages WHERE conversation_id = ? ORDER BY id",
+        (conv_id,),
+    ).fetchall()
+    history = [{"role": r[0], "content": r[1]} for r in rows]
+
+    # 调用 RAG（传入历史）
+    result = await _rag.answer(req.question, history=history)
+
+    # 保存这轮对话
+    db.execute(
+        "INSERT INTO chat_messages (conversation_id, role, content, created_at) VALUES (?, ?, ?, ?)",
+        (conv_id, "user", req.question, _dt.now().isoformat()),
+    )
+    db.execute(
+        "INSERT INTO chat_messages (conversation_id, role, content, sources, created_at) VALUES (?, ?, ?, ?, ?)",
+        (conv_id, "assistant", result["answer"],
+         _json.dumps(result.get("sources", []), ensure_ascii=False),
+         _dt.now().isoformat()),
+    )
+    db.commit()
+
+    result["conversation_id"] = conv_id
     return result
+
+
+@app.get("/api/chat/history")
+async def get_chat_history(conversation_id: str = "default", limit: int = 50):
+    """获取对话历史。"""
+    db = _ensure_chat_db()
+    rows = db.execute(
+        "SELECT role, content, sources, created_at FROM chat_messages "
+        "WHERE conversation_id = ? ORDER BY id DESC LIMIT ?",
+        (conversation_id, limit),
+    ).fetchall()
+    rows.reverse()
+    return [
+        {"role": r[0], "content": r[1],
+         "sources": _json.loads(r[2]) if r[2] else [],
+         "created_at": r[3]}
+        for r in rows
+    ]
+
+
+@app.post("/api/chat/clear")
+async def clear_chat(conversation_id: str = "default"):
+    """清空对话历史。"""
+    db = _ensure_chat_db()
+    db.execute("DELETE FROM chat_messages WHERE conversation_id = ?", (conversation_id,))
+    db.commit()
+    return {"cleared": True}
 
 
 # ── WebSocket 进度推送 ───────────────────────────────────────────────────

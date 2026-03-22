@@ -1,6 +1,7 @@
-"""LLM 适配器 — 可插拔的大语言模型后端。"""
+"""LLM 适配器 — 可插拔的大语言模型后端，支持多轮对话。"""
 
 import logging
+import re
 from typing import Protocol
 
 import httpx
@@ -9,11 +10,13 @@ from voicekb.config import Settings
 
 logger = logging.getLogger(__name__)
 
+Message = dict[str, str]  # {"role": "system"|"user"|"assistant", "content": "..."}
+
 
 class LLMBackend(Protocol):
     """LLM 后端协议。"""
 
-    async def generate(self, prompt: str, max_tokens: int = 2000) -> str: ...
+    async def chat(self, messages: list[Message], max_tokens: int = 2000) -> str: ...
 
 
 class OpenAICompatibleLLM:
@@ -24,14 +27,14 @@ class OpenAICompatibleLLM:
         self._model = model
         self._api_key = api_key
 
-    async def generate(self, prompt: str, max_tokens: int = 2000) -> str:
+    async def chat(self, messages: list[Message], max_tokens: int = 2000) -> str:
         try:
             async with httpx.AsyncClient(timeout=60.0) as client:
                 resp = await client.post(
                     f"{self._base_url}/chat/completions",
                     json={
                         "model": self._model,
-                        "messages": [{"role": "user", "content": prompt}],
+                        "messages": messages,
                         "max_tokens": max_tokens,
                         "temperature": 0.3,
                     },
@@ -41,16 +44,22 @@ class OpenAICompatibleLLM:
                 data = resp.json()
                 content = data["choices"][0]["message"]["content"]
                 # 去掉 Qwen3 的 <think>...</think> 思考过程
-                import re
                 content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL).strip()
                 return content
         except Exception:
             logger.error("LLM 生成失败", exc_info=True)
             return ""
 
+    async def generate(self, prompt: str, max_tokens: int = 2000) -> str:
+        """向后兼容：单条 prompt 生成。"""
+        return await self.chat([{"role": "user", "content": prompt}], max_tokens)
+
 
 class NoLLM:
     """空 LLM — 当未配置 LLM 时使用。"""
+
+    async def chat(self, messages: list[Message], max_tokens: int = 2000) -> str:
+        return ""
 
     async def generate(self, prompt: str, max_tokens: int = 2000) -> str:
         return ""
