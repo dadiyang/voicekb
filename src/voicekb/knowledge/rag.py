@@ -181,11 +181,10 @@ class RAGEngine:
             f"请完成两个任务，以 JSON 格式输出：\n"
             f"1. title: 用一个简短的中文标题概括主题（不超过15个字）\n"
             f"2. category: 从以下类别中选最匹配的一个：{cats_list}\n\n"
-            f'输出格式：{{"title": "...", "category": "..."}}\n'
-            f"只输出 JSON，不要其他文字。"
+            f'直接输出 JSON：{{"title": "...", "category": "..."}}\n/no_think'
         )
 
-        raw = await self._llm.generate(prompt, max_tokens=80)
+        raw = await self._llm.generate(prompt, max_tokens=100)
         raw = raw.strip()
 
         # 解析 JSON

@@ -44,8 +44,11 @@ class OpenAICompatibleLLM:
                 data = resp.json()
                 content = data["choices"][0]["message"]["content"]
                 # 去掉 Qwen3 的 <think>...</think> 思考过程
-                content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL).strip()
-                return content
+                content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL)
+                # 处理未闭合的 <think>（token 耗尽时思考过程被截断）
+                if "<think>" in content:
+                    content = content.split("<think>")[0]
+                return content.strip()
         except Exception:
             logger.error("LLM 生成失败", exc_info=True)
             return ""
