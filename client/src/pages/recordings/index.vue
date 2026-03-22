@@ -39,6 +39,9 @@
       </view>
     </view>
 
+    <!-- 以下内容仅在非搜索状态显示 -->
+    <template v-if="!searchQuery">
+
     <!-- 上传中卡片（非阻塞） -->
     <view v-if="uploadingFile" class="card rec-card uploading-card">
       <view class="rec-header">
@@ -96,7 +99,8 @@
       </view>
     </view>
 
-    <!-- 上传 FAB（头部已有+按钮，仅在滚动后显示） -->
+    </template>
+    <!-- /非搜索状态 -->
 
     <!-- Tab Bar -->
 
