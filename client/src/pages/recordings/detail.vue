@@ -39,7 +39,7 @@
         <view class="audio-controls">
           <text class="audio-time">{{ formatTimestamp(audioPos) }} / {{ formatTimestamp(audioDur) }}</text>
           <view class="audio-play-btn" @click="togglePlay">
-            <text class="play-icon">{{ isPlaying ? '⏸' : '▶' }}</text>
+            <text class="ti play-icon" :class="isPlaying ? 'ti-player-pause' : 'ti-player-play'"></text>
           </view>
         </view>
         <text class="player-hint">点击对话文字可跳转播放对应片段</text>

@@ -20,14 +20,12 @@ view, text, image, scroll-view, input, textarea, button {
   min-height: #{"calc(100vh - var(--window-top, 0px))"};
   min-height: #{"calc(100dvh - var(--window-top, 0px))"};
   background: $color-bg-page;
-  overflow: hidden;
 }
 
 .page-white {
   min-height: #{"calc(100vh - var(--window-top, 0px))"};
   min-height: #{"calc(100dvh - var(--window-top, 0px))"};
   background: $color-bg-card;
-  overflow: hidden;
 }
 
 .flex { display: flex; }
