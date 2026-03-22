@@ -106,23 +106,8 @@ class SearchEngine:
             return []
 
     def hybrid_search(self, query: str, limit: int = 20) -> list[SearchResult]:
-        """混合搜索：关键词 + 语义，去重合并。
-
-        去重逻辑：按 recording_id + 时间段去重（避免原文/流畅版文本不同导致重复）。
-        同一段话被两个引擎命中时，取较高分数。
-        """
-        kw_results = self.keyword_search(query, limit)
-        sem_results = self.semantic_search(query, limit)
-
-        # 按 recording_id + start_time 去重（时间段比文本内容更可靠）
-        best: dict[str, SearchResult] = {}
-
-        for r in kw_results + sem_results:
-            key = f"{r.recording_id}_{r.segment.start:.1f}"
-            if key not in best or r.score > best[key].score:
-                best[key] = r
-
-        merged = list(best.values())
-        merged = [r for r in merged if r.score >= 0.52]
-        merged.sort(key=lambda x: x.score, reverse=True)
-        return merged[:limit]
+        """语义搜索（bge-base-zh-v1.5 同时覆盖关键词和语义查询）。"""
+        results = self.semantic_search(query, limit)
+        results = [r for r in results if r.score >= 0.50]
+        results.sort(key=lambda x: x.score, reverse=True)
+        return results[:limit]
