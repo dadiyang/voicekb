@@ -1185,54 +1185,66 @@ const PROMPT_VARS = [
 async function openPromptEditor(category, recordingId) {
   const catLabel = c => c === '_default' ? '通用' : c;
 
-  // 获取当前自定义 prompt（如有）
+  // 获取三层 prompt
   const allPrompts = await api('/api/summary-prompts');
-  const existing = allPrompts.find(p => p.category === category);
-  const customText = existing?.prompt || '';
-  const promptId = existing?.id;
-
-  // 获取平台默认
+  const catPrompt = allPrompts.find(p => p.category === category);
+  let recPrompt = '';
+  if (recordingId) {
+    const rec = await api(`/api/recordings/${recordingId}`);
+    recPrompt = rec.custom_prompt || '';
+  }
   let builtinText = '';
   try {
     const resp = await api(`/api/summary-prompts/builtin/${encodeURIComponent(category)}`);
     builtinText = resp.prompt || '';
   } catch(e) {}
 
-  const isCustomized = !!customText;
-  const displayText = customText || builtinText;
+  // 当前生效的 prompt 和来源
+  const activePrompt = recPrompt || catPrompt?.prompt || builtinText;
+  const activeSource = recPrompt ? 'recording' : catPrompt ? 'category' : 'builtin';
+  const hasRecScope = recordingId; // 是否从具体录音进入（支持录音级）
 
   // 全屏编辑视图
   const viewId = recordingId ? 'viewDetail' : 'viewProfile';
   const view = document.getElementById(viewId);
   const prevHtml = view.innerHTML;
-  // 确保此 view 可见
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   view.classList.add('active');
   document.getElementById('fabUpload').classList.add('hidden');
+
+  // 作用范围选项
+  const scopeHtml = hasRecScope ? `
+    <div style="font-size:13px;font-weight:600;margin-bottom:6px">修改后生效范围</div>
+    <div style="display:flex;gap:8px;margin-bottom:14px">
+      <button class="filter-chip active" id="scopeThis" onclick="setScope('this')">仅本条录音</button>
+      <button class="filter-chip" id="scopeAll" onclick="setScope('all')">所有「${catLabel(category)}」类</button>
+    </div>` : '';
 
   view.innerHTML = `
     <div style="padding:16px">
       <div class="detail-back" onclick="restoreDetail()">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
-        返回录音
+        返回
       </div>
-      <div style="font-size:18px;font-weight:700;margin:12px 0 4px">总结方式 · ${catLabel(category)}</div>
-      <div style="font-size:12px;color:var(--color-text-tertiary);margin-bottom:16px">
-        ${isCustomized ? '<span style="color:var(--color-primary)">已自定义</span> · 修改后所有「'+catLabel(category)+'」类录音生效' : '当前使用平台默认 · 修改后所有「'+catLabel(category)+'」类录音生效'}
-      </div>
+      <div style="font-size:18px;font-weight:700;margin:12px 0 16px">调整总结方式</div>
 
-      <div style="font-size:13px;font-weight:600;margin-bottom:6px">总结指令</div>
-      <div style="font-size:11px;color:var(--color-text-tertiary);margin-bottom:8px">告诉 AI 你希望怎么总结这类录音。输入 @ 可插入变量。对话内容会自动附加。</div>
+      ${scopeHtml}
+
+      <div style="font-size:11px;color:var(--color-text-tertiary);margin-bottom:8px">告诉 AI 你希望怎么总结。输入 @ 插入变量，对话内容会自动附加。</div>
       <div style="position:relative">
         <div class="prompt-editor" id="promptEditor" contenteditable="true"
-             data-placeholder="例如：请提取会议中的关键决策和行动项..." oninput="onPromptInput(event)"></div>
+             data-placeholder="例如：请提取关键决策和行动项..." oninput="onPromptInput(event)"></div>
         <div id="varDropdown" class="var-dropdown hidden"></div>
       </div>
 
-      <div style="display:flex;gap:8px;margin-top:14px">
-        <button class="btn btn-primary" style="flex:1" onclick="saveAndRegenerate('${category.replace(/'/g,"\\'")}', '${recordingId||''}')">保存${recordingId ? '并重新总结' : ''}</button>
-      </div>
-      ${isCustomized ? `<button class="btn btn-outline btn-block" style="margin-top:8px" onclick="resetToDefault(${promptId})">恢复为平台默认内容</button>` : ''}
+      <button class="btn btn-primary btn-block" style="margin-top:14px" id="promptSaveBtn"
+        onclick="savePromptWithScope('${category.replace(/'/g,"\\'")}', '${recordingId||''}')">
+        保存${recordingId ? '并重新总结' : ''}
+      </button>
+
+      ${activeSource !== 'builtin' ? `
+        <button class="btn btn-outline btn-block" style="margin-top:8px"
+          onclick="resetToDefault(${catPrompt?.id || 'null'})">恢复为平台默认内容</button>` : ''}
     </div>`;
 
   // 记住上下文
@@ -1242,7 +1254,44 @@ async function openPromptEditor(category, recordingId) {
 
   // 填充编辑器
   const editor = document.getElementById('promptEditor');
-  if (editor) editor.innerHTML = promptToHtml(displayText);
+  if (editor) editor.innerHTML = promptToHtml(activePrompt);
+}
+
+let promptScope = 'this'; // 'this' = 仅本条, 'all' = 所有同类
+function setScope(scope) {
+  promptScope = scope;
+  document.getElementById('scopeThis')?.classList.toggle('active', scope === 'this');
+  document.getElementById('scopeAll')?.classList.toggle('active', scope === 'all');
+}
+
+async function savePromptWithScope(category, recordingId) {
+  const editor = document.getElementById('promptEditor');
+  if (!editor) return;
+  const prompt = editorToPrompt(editor);
+  if (!prompt) { showToast('请输入总结指令'); return; }
+
+  if (promptScope === 'this' && recordingId) {
+    // 录音级：只保存到这条录音
+    await api(`/api/recordings/${recordingId}/prompt`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({prompt}),
+    });
+  } else {
+    // 分类级：保存到分类 prompt
+    await api('/api/summary-prompts', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({category, prompt}),
+    });
+  }
+  showToast('已保存');
+
+  if (recordingId) {
+    await api(`/api/recordings/${recordingId}/reprocess`, {method: 'POST'});
+    showToast('正在重新总结...');
+    restoreDetail();
+  } else {
+    restoreDetail();
+  }
 }
 
 function restoreDetail() {
@@ -1264,27 +1313,6 @@ function restoreDetail() {
   backToList();
 }
 
-async function saveAndRegenerate(category, recordingId) {
-  const editor = document.getElementById('promptEditor');
-  if (!editor) return;
-  const prompt = editorToPrompt(editor);
-  if (!prompt) { showToast('请输入总结指令'); return; }
-
-  await api('/api/summary-prompts', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({category, prompt}),
-  });
-  showToast('已保存');
-
-  if (recordingId) {
-    // 重新处理这条录音的摘要
-    await api(`/api/recordings/${recordingId}/reprocess`, {method:'POST'});
-    showToast('正在重新总结...');
-    restoreDetail();
-  } else {
-    restoreDetail();
-  }
-}
 
 async function resetToDefault(promptId) {
   // 删除自定义 → 下次保存时如果内容和默认一样就不会再存 DB

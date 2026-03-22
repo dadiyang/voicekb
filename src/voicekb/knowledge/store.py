@@ -40,6 +40,7 @@ class RecordingStore:
                 status TEXT NOT NULL DEFAULT 'pending',
                 summary TEXT DEFAULT '',
                 category TEXT DEFAULT '',
+                custom_prompt TEXT DEFAULT '',
                 tags TEXT DEFAULT '[]',
                 error TEXT,
                 speakers TEXT DEFAULT '[]'
@@ -145,12 +146,13 @@ class RecordingStore:
         # SQLite
         self._conn.execute(
             "INSERT OR REPLACE INTO recordings "
-            "(id, filename, title, source, duration, created_at, status, summary, category, tags, error, speakers) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "(id, filename, title, source, duration, created_at, status, summary, category, custom_prompt, tags, error, speakers) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (recording.id, recording.filename, recording.title,
              recording.source, recording.duration,
              recording.created_at.isoformat(),
              recording.status, recording.summary, recording.category,
+             recording.custom_prompt,
              json.dumps(recording.tags), recording.error,
              json.dumps(recording.speakers)),
         )
@@ -249,6 +251,7 @@ class RecordingStore:
             filename=row["filename"],
             title=row["title"] if "title" in row.keys() else "",
             category=row["category"] if "category" in row.keys() else "",
+            custom_prompt=row["custom_prompt"] if "custom_prompt" in row.keys() else "",
             source=row["source"],
             duration=row["duration"],
             created_at=datetime.fromisoformat(row["created_at"]),

@@ -189,10 +189,16 @@ async def _process_recording(recording_id: str, audio_path: Path) -> None:
         recording.title = title
         recording.category = category
 
-        # LLM 第 2 步：用分类专属 prompt 生成摘要
+        # LLM 第 2 步：三层 prompt 优先级：录音级 > 分类级 > 平台默认
         _progress[recording_id] = {"step": "正在写总结...", "percent": 94}
-        custom_prompt = _store.get_summary_prompt(category)
+        # 检查是否有录音级自定义（从已有记录读取）
+        existing_rec = _store.get_recording(recording_id)
+        rec_prompt = existing_rec.custom_prompt if existing_rec else ""
+        custom_prompt = rec_prompt or _store.get_summary_prompt(category)
         summary = await _rag.summarize_recording(recording, custom_prompt=custom_prompt)
+        # 保留录音级 prompt
+        if rec_prompt:
+            recording.custom_prompt = rec_prompt
         recording.summary = summary
 
         # 保存结果
@@ -320,6 +326,21 @@ async def delete_category_preset(preset_id: int):
 async def update_category(recording_id: str, req: CategoryRequest):
     assert _store is not None
     _store.update_category(recording_id, req.category)
+    return {"updated": True}
+
+
+class RecordingPromptRequest(BaseModel):
+    prompt: str
+
+@app.post("/api/recordings/{recording_id}/prompt")
+async def set_recording_prompt(recording_id: str, req: RecordingPromptRequest):
+    """设置录音级自定义 prompt。"""
+    assert _store is not None
+    _store._conn.execute(
+        "UPDATE recordings SET custom_prompt = ? WHERE id = ?",
+        (req.prompt, recording_id),
+    )
+    _store._conn.commit()
     return {"updated": True}
 
 

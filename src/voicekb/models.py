@@ -29,6 +29,7 @@ class Recording(BaseModel):
     speakers: list[str] = []
     summary: str = ""
     category: str = ""  # LLM 自动分类，用户可修改
+    custom_prompt: str = ""  # 录音级自定义摘要 prompt（覆盖分类级）
     tags: list[str] = []
     error: str | None = None
 
