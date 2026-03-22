@@ -124,16 +124,13 @@ class RAGEngine:
             f"{s.speaker_id}: {s.text}" for s in recording.segments[:25]
         )
 
-        cats_hint = ""
-        if existing_categories:
-            cats_hint = f"已有类别：{', '.join(existing_categories)}。优先从中选择，确实不合适才建议新类别。\n"
+        cats_list = ", ".join(existing_categories) if existing_categories else "工作会议, 项目讨论, 技术评审, 日常聊天, 电话沟通, 培训讲座, 面试"
 
         prompt = (
             f"以下是一段录音的对话内容：\n\n{sample}\n\n"
-            f"{cats_hint}"
-            "请为这段录音分配一个类别标签。\n"
-            "常见类别参考：工作会议、项目讨论、技术评审、面试、培训、日常聊天、电话沟通、讲座分享\n"
-            "要求：只输出类别名称，2-4个字，不要解释。"
+            f"可选类别：{cats_list}\n"
+            "请从上述类别中选择最匹配的一个。如果都不合适，可以用2-4个字建议新类别。\n"
+            "要求：只输出类别名称，不要解释。"
         )
         category = await self._llm.generate(prompt, max_tokens=20)
         category = category.strip().strip("\"'《》「」·").strip()

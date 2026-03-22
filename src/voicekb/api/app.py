@@ -83,7 +83,10 @@ class RenameRequest(BaseModel):
 
 class AskRequest(BaseModel):
     question: str
-    conversation_id: str | None = None  # 多轮对话 ID
+    conversation_id: str | None = None
+
+class CategoryRequest(BaseModel):
+    category: str
 
 
 # ── API 路由 ──────────────────────────────────────────────────────────────
@@ -189,7 +192,8 @@ async def _process_recording(recording_id: str, audio_path: Path) -> None:
 
         # 自动分类
         _progress[recording_id] = {"step": "自动分类", "percent": 96}
-        existing_cats = _store.get_categories()
+        presets = _store.get_category_presets()
+        existing_cats = [p["name"] for p in presets]
         category = await _rag.classify_recording(recording, existing_cats)
         recording.category = category
 
@@ -298,11 +302,21 @@ async def delete_recording(recording_id: str):
 
 @app.get("/api/categories")
 async def list_categories():
+    """返回所有分类预置。"""
     assert _store is not None
-    return _store.get_categories()
+    return _store.get_category_presets()
 
-class CategoryRequest(BaseModel):
-    category: str
+@app.post("/api/categories")
+async def add_category(req: CategoryRequest):
+    assert _store is not None
+    _store.add_category_preset(req.category)
+    return {"added": req.category}
+
+@app.post("/api/categories/{preset_id}/delete")
+async def delete_category_preset(preset_id: int):
+    assert _store is not None
+    _store.delete_category_preset(preset_id)
+    return {"deleted": True}
 
 @app.post("/api/recordings/{recording_id}/category")
 async def update_category(recording_id: str, req: CategoryRequest):

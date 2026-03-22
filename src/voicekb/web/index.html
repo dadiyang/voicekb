@@ -481,17 +481,20 @@ async function loadRecordings() {
   const view = document.getElementById('viewHome');
   try {
     recordings = await api('/api/recordings');
-    const categories = await api('/api/categories');
+    const catPresets = await api('/api/categories');
+    // 从预置列表中取名称
+    const categories = catPresets.map(c => c.name || c);
 
     const searchBar = `
       <div class="search-bar">
         <input class="search-input" id="homeSearchInput" placeholder="搜索录音内容..." oninput="debounceHomeSearch()">
       </div>`;
 
-    // 分类筛选条
+    // 分类筛选条（有录音使用了分类时才显示）
+    const usedCats = [...new Set(recordings.map(r => r.category).filter(Boolean))];
     let filterBar = '';
-    if (categories.length > 0) {
-      const chips = categories.map(c =>
+    if (usedCats.length > 0) {
+      const chips = usedCats.map(c =>
         `<button class="filter-chip ${activeCategory === c ? 'active' : ''}" onclick="filterByCategory('${c}')">${c}</button>`
       ).join('');
       filterBar = `
@@ -694,7 +697,42 @@ async function openRecording(recId) {
   try {
     const rec = await api(`/api/recordings/${recId}`);
     currentRecording = rec;
-    renderDetail(rec);
+
+    if (rec.status === 'processing') {
+      // 处理中 — 显示进度，轮询等待完成
+      view.innerHTML = `
+        <div style="padding:16px">
+          <div class="detail-back" onclick="backToList()">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+            返回
+          </div>
+          <div class="card" style="margin-top:12px">
+            <div class="card-title">${rec.title || rec.filename}</div>
+            <div style="margin:16px 0">
+              <div class="progress-bar-bg"><div class="progress-bar-fill" id="detailProcBar" style="width:0%"></div></div>
+              <div class="progress-text" id="detailProcText" style="margin-top:8px;text-align:center;font-size:13px;color:var(--color-text-secondary)">处理中...</div>
+            </div>
+            <div style="font-size:12px;color:var(--color-text-tertiary);text-align:center">正在重新识别，请稍候</div>
+          </div>
+        </div>`;
+      // 轮询进度
+      const poll = setInterval(async () => {
+        try {
+          const st = await api(`/api/recordings/${recId}/status`);
+          const bar = document.getElementById('detailProcBar');
+          const txt = document.getElementById('detailProcText');
+          if (bar) bar.style.width = Math.max(0, st.percent) + '%';
+          if (txt) txt.textContent = `${st.step} (${Math.max(0, st.percent)}%)`;
+          if (st.percent >= 100 || st.percent < 0) {
+            clearInterval(poll);
+            showToast(st.percent >= 100 ? '处理完成' : '处理失败');
+            openRecording(recId);
+          }
+        } catch(e) {}
+      }, 2000);
+    } else {
+      renderDetail(rec);
+    }
   } catch(e) {
     view.innerHTML = '<div class="card"><p>加载失败</p></div>';
   }
@@ -814,7 +852,7 @@ function showRecordingMenu(recId) {
 }
 
 async function showCategoryEditor(recId) {
-  const categories = await api('/api/categories');
+  const presets = await api('/api/categories');
   const rec = recordings.find(r => r.id === recId);
   const current = rec?.category || '';
 
@@ -823,21 +861,31 @@ async function showCategoryEditor(recId) {
   modal.id = 'renameModal';
   modal.onclick = (e) => { if (e.target === modal) closeModal(); };
 
-  const chips = ['工作会议','项目讨论','技术评审','日常聊天','电话沟通','培训讲座']
-    .concat(categories.filter(c => !['工作会议','项目讨论','技术评审','日常聊天','电话沟通','培训讲座'].includes(c)))
-    .map(c => `<button class="filter-chip ${c === current ? 'active' : ''}" onclick="selectCategory('${recId}','${c}')" style="margin-bottom:8px">${c}</button>`)
-    .join(' ');
+  const chips = presets.map(p =>
+    `<button class="filter-chip ${p.name === current ? 'active' : ''}" onclick="selectCategory('${recId}','${p.name}')" style="margin-bottom:8px">${p.name}</button>`
+  ).join(' ');
 
   modal.innerHTML = `
     <div class="modal-sheet">
       <div class="modal-title">\u4fee\u6539\u5206\u7c7b</div>
       <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px">${chips}</div>
+      <div style="font-size:12px;color:var(--color-text-tertiary);margin-bottom:8px">\u6ca1\u6709\u5408\u9002\u7684\uff1f\u6dfb\u52a0\u65b0\u5206\u7c7b</div>
       <div style="display:flex;gap:8px">
-        <input class="modal-input" id="newCatInput" placeholder="\u81ea\u5b9a\u4e49\u5206\u7c7b..." style="margin-bottom:0;flex:1">
-        <button class="btn btn-primary btn-sm" onclick="selectCategory('${recId}', document.getElementById('newCatInput').value.trim())">\u786e\u5b9a</button>
+        <input class="modal-input" id="newCatInput" placeholder="\u8f93\u5165\u65b0\u5206\u7c7b\u540d\u79f0..." style="margin-bottom:0;flex:1">
+        <button class="btn btn-primary btn-sm" onclick="addAndSelectCategory('${recId}')">\u6dfb\u52a0</button>
       </div>
     </div>`;
   document.body.appendChild(modal);
+}
+
+async function addAndSelectCategory(recId) {
+  const name = document.getElementById('newCatInput')?.value?.trim();
+  if (!name) return;
+  await api('/api/categories', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({category: name}),
+  });
+  await selectCategory(recId, name);
 }
 
 async function selectCategory(recId, category) {
@@ -1097,38 +1145,42 @@ function showAbout() {
   document.body.appendChild(modal);
 }
 
+let vocabActiveTab = 'person';
+
 async function showVocabManager() {
   const vocab = await api('/api/vocabulary');
-  const categories = {person: '人名', term: '术语', general: '通用'};
+  const tabs = {person: '人名', term: '术语'};
   const modal = document.createElement('div');
   modal.className = 'modal-overlay';
   modal.id = 'renameModal';
   modal.onclick = (e) => { if (e.target === modal) closeModal(); };
 
-  const list = vocab.map(v => `
+  const tabHtml = Object.entries(tabs).map(([k, v]) =>
+    `<button class="filter-chip ${vocabActiveTab === k ? 'active' : ''}" onclick="vocabActiveTab='${k}';closeModal();showVocabManager()">${v}</button>`
+  ).join('');
+
+  const filtered = vocab.filter(v => v.category === vocabActiveTab);
+  const placeholder = vocabActiveTab === 'person' ? '输入人名（如：周神、张三）' : '输入术语（如：K8s、微服务）';
+  const list = filtered.map(v => `
     <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--color-border)">
-      <div>
-        <span style="font-weight:500">${v.term}</span>
-        <span style="font-size:11px;color:var(--color-text-tertiary);margin-left:6px">${categories[v.category] || v.category}</span>
-      </div>
-      <button class="btn btn-sm btn-outline" style="color:#FF3B30;border-color:#FF3B30" onclick="deleteVocab(${v.id})">删除</button>
+      <span style="font-weight:500;font-size:14px">${v.term}</span>
+      <span style="color:var(--color-text-disabled);cursor:pointer;font-size:18px;padding:0 4px" onclick="deleteVocab(${v.id})">&times;</span>
     </div>`).join('');
 
   modal.innerHTML = `
     <div class="modal-sheet">
       <div class="modal-title">术语管理</div>
-      <div style="font-size:12px;color:var(--color-text-tertiary);margin-bottom:12px">添加人名、专业术语，提高语音识别准确率</div>
-      <div style="display:flex;gap:8px;margin-bottom:16px">
-        <input class="modal-input" id="vocabInput" placeholder="输入术语（如：张三）" style="margin-bottom:0;flex:1">
-        <select id="vocabCategory" style="height:44px;border:1.5px solid transparent;background:var(--color-bg-hover);border-radius:var(--radius-lg);padding:0 8px;font-size:13px;color:var(--color-text-primary);outline:none">
-          <option value="person">人名</option>
-          <option value="term">术语</option>
-          <option value="general">通用</option>
-        </select>
+      <div style="font-size:12px;color:var(--color-text-tertiary);margin-bottom:12px">添加后新录音会自动使用，旧录音可点"重新识别"</div>
+      <div style="display:flex;gap:8px;margin-bottom:14px">${tabHtml}</div>
+      <div style="display:flex;gap:8px;margin-bottom:14px">
+        <input class="modal-input" id="vocabInput" placeholder="${placeholder}" style="margin-bottom:0;flex:1"
+          onkeypress="if(event.key==='Enter')addVocab()">
+        <button class="btn btn-primary" style="height:44px;flex-shrink:0" onclick="addVocab()">添加</button>
       </div>
-      <button class="btn btn-primary btn-block btn-sm" onclick="addVocab()" style="margin-bottom:16px">添加</button>
-      <div style="max-height:40vh;overflow-y:auto">${list || '<p style="color:var(--color-text-tertiary);text-align:center">还没有添加术语</p>'}</div>
-      <div class="modal-actions" style="margin-top:16px">
+      <div style="max-height:35vh;overflow-y:auto">
+        ${list || '<p style="color:var(--color-text-tertiary);text-align:center;padding:20px 0">还没有添加' + tabs[vocabActiveTab] + '</p>'}
+      </div>
+      <div class="modal-actions" style="margin-top:14px">
         <button class="btn btn-outline btn-block" onclick="closeModal()">关闭</button>
       </div>
     </div>`;
@@ -1138,12 +1190,11 @@ async function showVocabManager() {
 
 async function addVocab() {
   const term = document.getElementById('vocabInput')?.value?.trim();
-  const category = document.getElementById('vocabCategory')?.value || 'general';
   if (!term) return;
   await api('/api/vocabulary', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({term, category}),
+    body: JSON.stringify({term, category: vocabActiveTab}),
   });
   closeModal();
   showVocabManager();

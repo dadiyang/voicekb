@@ -64,9 +64,26 @@ class RecordingStore:
             CREATE TABLE IF NOT EXISTS vocabulary (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 term TEXT NOT NULL UNIQUE,
-                category TEXT DEFAULT 'general'
+                category TEXT DEFAULT 'person'
             )
         """)
+
+        # 录音分类预置表
+        self._conn.execute("""
+            CREATE TABLE IF NOT EXISTS category_presets (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                is_builtin INTEGER DEFAULT 0
+            )
+        """)
+        # 预置分类（仅首次）
+        builtins = ["工作会议", "项目讨论", "技术评审", "日常聊天", "电话沟通", "培训讲座", "面试", "其他"]
+        for cat in builtins:
+            try:
+                self._conn.execute(
+                    "INSERT INTO category_presets (name, is_builtin) VALUES (?, 1)", (cat,))
+            except sqlite3.IntegrityError:
+                pass
         self._conn.commit()
 
         # FTS5 — 需要单独处理（不能在 executescript 中和其他语句混合）
@@ -348,6 +365,28 @@ class RecordingStore:
             "SELECT DISTINCT category FROM recordings WHERE category != '' ORDER BY category"
         ).fetchall()
         return [r[0] for r in rows]
+
+    def get_category_presets(self) -> list[dict]:
+        """获取所有分类预置（内置+自定义）。"""
+        rows = self._conn.execute(
+            "SELECT id, name, is_builtin FROM category_presets ORDER BY is_builtin DESC, id"
+        ).fetchall()
+        return [{"id": r[0], "name": r[1], "is_builtin": bool(r[2])} for r in rows]
+
+    def add_category_preset(self, name: str) -> None:
+        """添加自定义分类。"""
+        try:
+            self._conn.execute(
+                "INSERT INTO category_presets (name, is_builtin) VALUES (?, 0)", (name.strip(),))
+            self._conn.commit()
+        except sqlite3.IntegrityError:
+            pass
+
+    def delete_category_preset(self, preset_id: int) -> None:
+        """删除自定义分类（内置的不允许删）。"""
+        self._conn.execute(
+            "DELETE FROM category_presets WHERE id = ? AND is_builtin = 0", (preset_id,))
+        self._conn.commit()
 
     def update_category(self, recording_id: str, category: str) -> None:
         """修改录音分类。"""
