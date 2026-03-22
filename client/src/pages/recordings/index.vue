@@ -1,9 +1,22 @@
 <template>
   <view class="page">
-    <!-- 搜索栏 -->
-    <view class="search-bar">
-      <input class="search-input" v-model="searchQuery" placeholder="搜索录音内容..."
-             @input="debounceSearch" confirm-type="search" />
+    <!-- 品牌头部 + 搜索 -->
+    <view class="brand-header">
+      <view class="brand-row">
+        <view>
+          <text class="brand-title">VoiceKB</text>
+          <text class="brand-sub">{{ recordings.length }} 条录音 · {{ totalMinutes }} 分钟</text>
+        </view>
+        <view class="brand-fab" @click="chooseFile">
+          <text class="ti ti-plus brand-fab-icon"></text>
+        </view>
+      </view>
+      <view class="search-wrap">
+        <text class="ti ti-search search-icon"></text>
+        <input class="search-input" v-model="searchQuery" placeholder="搜索录音内容..."
+               placeholder-style="color:rgba(255,255,255,0.6)"
+               @input="debounceSearch" confirm-type="search" />
+      </view>
     </view>
 
     <!-- 分类筛选 -->
@@ -99,6 +112,10 @@ const progressStep = ref('')
 const progressPercent = ref(0)
 
 const statusLabel = { pending: '等待中', processing: '处理中', completed: '已完成', failed: '失败' }
+
+const totalMinutes = computed(() =>
+  Math.floor(recordings.value.reduce((s, r) => s + (r.duration || 0), 0) / 60)
+)
 
 const usedCategories = computed(() =>
   [...new Set(recordings.value.map(r => r.category).filter(c => c && c !== '其他'))]
@@ -306,14 +323,32 @@ onShow(loadRecordings)
 <style lang="scss" scoped>
 .page { min-height: #{"calc(100vh - var(--window-top, 0px))"}; background: $color-bg-page; padding-bottom: 140rpx; }
 
-/* ===== Search Bar — 继承 hotel_shop input 规范 ===== */
-.search-bar { display: flex; gap: 16rpx; padding: 0 $spacing-lg; margin-bottom: $spacing-md; }
-.search-input {
-  flex: 1; height: 88rpx; padding: 0 28rpx;
-  background: $color-bg-hover; border: 3rpx solid transparent;
-  border-radius: $radius-lg; font-size: $font-base; color: $color-text-primary;
-  transition: border-color 0.15s, background 0.15s;
+/* ===== 品牌头部 — 渐变背景 ===== */
+.brand-header {
+  background: $color-primary-banner;
+  padding: $spacing-xl $spacing-lg $spacing-lg;
+  margin-bottom: $spacing-md;
 }
+.brand-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: $spacing-lg; }
+.brand-title { font-size: 40rpx; font-weight: 800; color: #fff; display: block; letter-spacing: -1rpx; }
+.brand-sub { font-size: $font-xs; color: rgba(255,255,255,0.75); display: block; margin-top: 4rpx; }
+.brand-fab {
+  width: 80rpx; height: 80rpx; border-radius: 50%;
+  background: rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center;
+}
+.brand-fab-icon { font-size: 36rpx; color: #fff; }
+
+.search-wrap { position: relative; }
+.search-icon { position: absolute; left: 24rpx; top: 50%; transform: translateY(-50%); font-size: 28rpx; color: rgba(255,255,255,0.7); z-index: 1; }
+.search-input {
+  width: 100%; height: 80rpx; padding: 0 28rpx 0 72rpx;
+  background: rgba(255,255,255,0.2); border: none;
+  border-radius: $radius-full; font-size: $font-base; color: #fff;
+}
+// 小程序用 placeholder-style
+// #ifdef H5
+.search-input::placeholder { color: rgba(255,255,255,0.6) !important; }
+// #endif
 
 /* ===== Filter Bar — 分类筛选 ===== */
 .filter-bar { white-space: nowrap; padding: 0 $spacing-lg $spacing-md; }
@@ -326,8 +361,11 @@ onShow(loadRecordings)
   &.active { background: $color-primary; color: #fff; border-color: $color-primary; box-shadow: 0 4rpx 16rpx rgba(79,70,229,0.2); }
 }
 
-/* ===== Recording Card — 继承 product-card 结构 ===== */
-.rec-card { cursor: pointer; transition: box-shadow 0.2s; }
+/* ===== Recording Card — 继承 order-card 结构 ===== */
+.rec-card {
+  cursor: pointer; transition: box-shadow 0.2s;
+  border-left: 6rpx solid $color-primary; overflow: hidden;
+}
 .rec-card:active { box-shadow: $shadow-lg; }
 .rec-header { display: flex; align-items: center; gap: $spacing-lg; }
 .rec-icon {

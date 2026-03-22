@@ -1,17 +1,23 @@
 <template>
   <view class="page">
-    <view class="section-title">
-      <text class="section-title-text">摘要模板</text>
+    <!-- 说明头部 -->
+    <view class="header-card">
+      <text class="ti ti-file-text header-icon"></text>
+      <text class="header-title">摘要模板</text>
+      <text class="header-desc">为不同类别的录音定制 AI 总结方式</text>
     </view>
-    <view class="hint">点击任意类别查看或修改总结方式</view>
 
-    <view class="card menu-item" v-for="c in allCats" :key="c" @click="editPrompt(c)">
-      <view class="menu-row">
-        <view class="menu-info">
-          <text class="menu-name">{{ catLabel(c) }}</text>
-          <text class="menu-status" :class="{custom: customMap[c]}">{{ customMap[c] ? '已自定义' : '平台默认' }}</text>
+    <!-- 分类列表 -->
+    <view class="list-section">
+      <view class="list-card" v-for="c in allCats" :key="c" @click="editPrompt(c)">
+        <view class="list-left">
+          <view class="cat-dot" :class="{'custom': customMap[c]}"></view>
+          <view class="list-info">
+            <text class="list-name">{{ catLabel(c) }}</text>
+            <text class="list-status" :class="{custom: customMap[c]}">{{ customMap[c] ? '已自定义' : '使用平台默认' }}</text>
+          </view>
         </view>
-        <text class="ti ti-chevron-right menu-arrow"></text>
+        <text class="ti ti-chevron-right list-arrow"></text>
       </view>
     </view>
   </view>
@@ -70,14 +76,33 @@ onShow(load)
 
 <style lang="scss" scoped>
 .page { min-height: 100vh; background: $color-bg-page; }
-.section-title { padding: $spacing-lg; }
-.section-title-text { font-size: $font-lg; font-weight: 700; }
-.hint { font-size: $font-xs; color: $color-text-tertiary; padding: 0 $spacing-lg $spacing-md; }
 
-.menu-item { cursor: pointer; }
-.menu-row { display: flex; align-items: center; gap: $spacing-lg; }
-.menu-info { flex: 1; }
-.menu-name { font-size: $font-base; font-weight: 500; display: block; }
-.menu-status { font-size: $font-xs; color: $color-text-tertiary; &.custom { color: $color-primary; } }
-.menu-arrow { font-size: 28rpx; color: $color-text-disabled; }
+/* ── 说明头部 ── */
+.header-card {
+  background: $color-primary-banner;
+  padding: $spacing-xxl $spacing-lg;
+  text-align: center;
+}
+.header-icon { font-size: 64rpx; color: #fff; display: block; margin-bottom: $spacing-md; }
+.header-title { font-size: $font-xl; font-weight: 700; color: #fff; display: block; }
+.header-desc { font-size: $font-sm; color: rgba(255,255,255,0.85); display: block; margin-top: $spacing-xs; }
+
+/* ── 列表 ── */
+.list-section { padding: $spacing-lg; }
+.list-card {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 28rpx 32rpx; background: $color-bg-card;
+  border-radius: $radius-lg; margin-bottom: $spacing-md;
+  box-shadow: $shadow-md; cursor: pointer;
+}
+.list-left { display: flex; align-items: center; gap: 24rpx; }
+.cat-dot {
+  width: 16rpx; height: 16rpx; border-radius: 50%;
+  background: $color-text-disabled;
+  &.custom { background: $color-primary; box-shadow: 0 0 8rpx rgba(79,70,229,0.4); }
+}
+.list-info { display: flex; flex-direction: column; }
+.list-name { font-size: $font-base; font-weight: 500; }
+.list-status { font-size: $font-xs; color: $color-text-tertiary; &.custom { color: $color-primary; } }
+.list-arrow { font-size: 28rpx; color: $color-text-disabled; }
 </style>

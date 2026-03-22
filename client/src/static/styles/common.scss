@@ -212,3 +212,18 @@ view, text, image, scroll-view, input, textarea, button {
   height: 160rpx;
   border-radius: $radius-md;
 }
+
+/* ── 移动端滚动优化 ── */
+uni-page-body {
+  -webkit-overflow-scrolling: touch;
+  overflow-y: auto;
+}
+
+/* ── 输入框移动端优化 ── */
+uni-input {
+  width: 100%;
+}
+uni-input .uni-input-input {
+  width: 100% !important;
+  font-size: 14px !important;
+}

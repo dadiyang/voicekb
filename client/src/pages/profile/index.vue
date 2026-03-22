@@ -1,15 +1,18 @@
 <template>
-  <view class="page profile-section">
-    <!-- 用户信息 -->
-    <view class="profile-header">
-      <view class="profile-avatar">V</view>
-      <view class="profile-info">
-        <text class="profile-name">VoiceKB 用户</text>
-        <text class="profile-sub">个人录音知识库</text>
+  <view class="page">
+    <!-- 渐变头部 -->
+    <view class="profile-banner">
+      <view class="profile-header">
+        <view class="profile-avatar">V</view>
+        <view class="profile-info">
+          <text class="profile-name">VoiceKB 用户</text>
+          <text class="profile-sub">个人录音知识库</text>
+        </view>
       </view>
     </view>
 
-    <!-- 统计卡片 -->
+    <!-- 统计卡片（悬浮在渐变上） -->
+    <view class="stats-float">
     <view class="profile-stats">
       <view class="stat-card">
         <text class="stat-num">{{ stats.recordings }}</text>
@@ -24,8 +27,10 @@
         <text class="stat-label">分钟</text>
       </view>
     </view>
+    </view>
 
     <!-- 菜单项 -->
+    <view class="menu-section">
     <view class="profile-menu-item" @click="manageSpeakers">
       <text class="ti ti-users menu-icon"></text>
       <text class="menu-text">说话人管理</text>
@@ -45,6 +50,7 @@
       <text class="ti ti-info-circle menu-icon"></text>
       <text class="menu-text">关于 VoiceKB</text>
       <text class="ti ti-chevron-right menu-arrow"></text>
+    </view>
     </view>
 
     <text class="version">VoiceKB v0.1.0 · MIT License</text>
@@ -244,49 +250,36 @@ onShow(loadStats)
   padding-bottom: 140rpx;
 }
 
-/* ── Profile Section ── */
-.profile-section {
-  padding: $spacing-lg;
+/* ── 渐变头部 ── */
+.profile-banner {
+  background: $color-primary-banner;
+  padding: $spacing-xxl $spacing-lg $spacing-xxl;
 }
-
-/* ── 头像 + 用户名 ── */
 .profile-header {
   display: flex;
   align-items: center;
   gap: 28rpx;
-  margin-bottom: $spacing-xxl;
 }
 .profile-avatar {
-  width: 112rpx;
-  height: 112rpx;
-  border-radius: 50%;
-  background: linear-gradient(135deg, $color-primary, #818CF8);
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 48rpx;
-  font-weight: 700;
+  width: 112rpx; height: 112rpx; border-radius: 50%;
+  background: rgba(255,255,255,0.2); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 48rpx; font-weight: 700;
+  border: 4rpx solid rgba(255,255,255,0.3);
 }
-.profile-info {
-  display: flex;
-  flex-direction: column;
-}
-.profile-name {
-  font-size: $font-xl;
-  font-weight: 600;
-  display: block;
-}
-.profile-sub {
-  font-size: $font-sm;
-  color: $color-text-tertiary;
-}
+.profile-info { display: flex; flex-direction: column; }
+.profile-name { font-size: $font-xl; font-weight: 700; color: #fff; display: block; }
+.profile-sub { font-size: $font-sm; color: rgba(255,255,255,0.85); }
 
-/* ── 统计卡片 ── */
+/* ── 统计卡片（悬浮在渐变上） ── */
+.stats-float {
+  margin-top: -40rpx;
+  padding: 0 $spacing-lg;
+}
 .profile-stats {
   display: flex;
   gap: $spacing-lg;
-  margin-bottom: $spacing-xxl;
+  margin-bottom: $spacing-xl;
 }
 .stat-card {
   flex: 1;
@@ -309,16 +302,19 @@ onShow(loadStats)
   display: block;
 }
 
-/* ── 菜单项 ── */
+/* ── 菜单区域 ── */
+.menu-section {
+  padding: 0 $spacing-lg;
+}
 .profile-menu-item {
   display: flex;
   align-items: center;
   gap: 24rpx;
   padding: 28rpx 32rpx;
   background: $color-bg-card;
-  border-radius: $radius-md;
+  border-radius: $radius-lg;
   margin-bottom: $spacing-md;
-  box-shadow: $shadow-sm;
+  box-shadow: $shadow-md;
 }
 .menu-icon {
   font-size: 40rpx;
