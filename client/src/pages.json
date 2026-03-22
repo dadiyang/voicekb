@@ -7,7 +7,8 @@
     {"path": "pages/speakers/index", "style": {"navigationBarTitleText": "说话人管理"}},
     {"path": "pages/vocabulary/index", "style": {"navigationBarTitleText": "术语管理"}},
     {"path": "pages/prompts/index", "style": {"navigationBarTitleText": "摘要模板"}},
-    {"path": "pages/about/index", "style": {"navigationBarTitleText": "关于 VoiceKB"}}
+    {"path": "pages/about/index", "style": {"navigationBarTitleText": "关于 VoiceKB"}},
+    {"path": "pages/prompts/edit", "style": {"navigationBarTitleText": "编辑模板"}}
   ],
   "tabBar": {
     "color": "#86909C",

@@ -43,31 +43,8 @@ async function load() {
   } catch (e) {}
 }
 
-async function editPrompt(cat) {
-  const custom = customMap.value[cat]
-  let builtinText = ''
-  try { builtinText = (await promptApi.builtin(cat)).prompt } catch (e) {}
-  const currentText = custom?.prompt || builtinText
-
-  uni.showModal({
-    title: catLabel(cat),
-    editable: true,
-    placeholderText: '告诉 AI 你希望怎么总结这类录音',
-    content: currentText,
-    cancelText: custom ? '重置默认' : '取消',
-    confirmText: '保存',
-    success: async (r) => {
-      if (r.confirm && r.content?.trim()) {
-        await promptApi.save(cat, r.content.trim())
-        uni.showToast({ title: '已保存', icon: 'success' })
-        load()
-      } else if (!r.confirm && custom) {
-        await promptApi.delete(custom.id)
-        uni.showToast({ title: '已恢复默认', icon: 'success' })
-        load()
-      }
-    },
-  })
+function editPrompt(cat) {
+  uni.navigateTo({ url: `/pages/prompts/edit?cat=${encodeURIComponent(cat)}` })
 }
 
 onMounted(load)
@@ -79,9 +56,10 @@ onShow(load)
 
 /* ── 说明头部 ── */
 .header-card {
-  background: $color-primary-banner;
-  padding: $spacing-xxl $spacing-lg;
+  background: linear-gradient(135deg, #6366F1 0%, #818CF8 100%);
+  padding: $spacing-xl $spacing-lg;
   text-align: center;
+  
 }
 .header-icon { font-size: 64rpx; color: #fff; display: block; margin-bottom: $spacing-md; }
 .header-title { font-size: $font-xl; font-weight: 700; color: #fff; display: block; }

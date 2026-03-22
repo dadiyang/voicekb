@@ -198,23 +198,42 @@ function chooseFile() {
 }
 
 // #ifdef H5
-async function doUploadH5(file) {
+function doUploadH5(file) {
   processingId.value = 'uploading'
   progressStep.value = '上传中: ' + file.name
   progressPercent.value = 0
 
   const fd = new FormData()
   fd.append('file', file)
-  try {
-    const resp = await fetch('/api/upload', { method: 'POST', body: fd })
-    if (!resp.ok) throw new Error('Upload failed')
-    const data = await resp.json()
-    uni.showToast({ title: '上传成功，开始处理', icon: 'success' })
-    watchProgress(data.recording_id)
-  } catch (e) {
+
+  const xhr = new XMLHttpRequest()
+  xhr.open('POST', '/api/upload')
+
+  // 上传进度
+  xhr.upload.onprogress = (e) => {
+    if (e.lengthComputable) {
+      progressPercent.value = Math.round((e.loaded / e.total) * 100)
+      progressStep.value = `上传中: ${file.name} (${progressPercent.value}%)`
+    }
+  }
+
+  xhr.onload = () => {
+    if (xhr.status === 200) {
+      const data = JSON.parse(xhr.responseText)
+      uni.showToast({ title: '上传成功，开始处理', icon: 'success' })
+      watchProgress(data.recording_id)
+    } else {
+      processingId.value = ''
+      uni.showToast({ title: '上传失败', icon: 'none' })
+    }
+  }
+
+  xhr.onerror = () => {
     processingId.value = ''
     uni.showToast({ title: '上传失败', icon: 'none' })
   }
+
+  xhr.send(fd)
 }
 // #endif
 
@@ -320,11 +339,12 @@ onShow(loadRecordings)
 <style lang="scss" scoped>
 .page { min-height: #{"calc(100vh - var(--window-top, 0px))"}; background: $color-bg-page; padding-bottom: 140rpx; }
 
-/* ===== 品牌头部 — 渐变背景 ===== */
+/* ===== 品牌头部 — 轻渐变 ===== */
 .brand-header {
-  background: $color-primary-banner;
-  padding: $spacing-xl $spacing-lg $spacing-lg;
+  background: linear-gradient(135deg, #6366F1 0%, #818CF8 100%);
+  padding: $spacing-lg $spacing-lg $spacing-md;
   margin-bottom: $spacing-md;
+  
 }
 .brand-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: $spacing-lg; }
 .brand-title { font-size: 40rpx; font-weight: 800; color: #fff; display: block; letter-spacing: -1rpx; }

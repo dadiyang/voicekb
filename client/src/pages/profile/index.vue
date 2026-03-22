@@ -252,8 +252,9 @@ onShow(loadStats)
 
 /* ── 渐变头部 ── */
 .profile-banner {
-  background: $color-primary-banner;
-  padding: $spacing-xxl $spacing-lg $spacing-xxl;
+  background: linear-gradient(135deg, #6366F1 0%, #818CF8 100%);
+  padding: $spacing-xl $spacing-lg $spacing-xxl;
+  
 }
 .profile-header {
   display: flex;
