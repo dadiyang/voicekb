@@ -39,11 +39,8 @@ class SearchEngine:
         return self._chroma_collection
 
     def keyword_search(self, query: str, limit: int = 20) -> list[SearchResult]:
-        """关键词搜索：先整句 LIKE，再 jieba 分词逐词匹配。"""
+        """关键词搜索（LIKE）。"""
         try:
-            import jieba
-
-            # 先尝试整句匹配
             rows = self._conn.execute("""
                 SELECT s.*, r.filename as recording_filename
                 FROM segments s
@@ -52,21 +49,6 @@ class SearchEngine:
                 ORDER BY s.start_time
                 LIMIT ?
             """, (f"%{query}%", limit)).fetchall()
-
-            # 整句没结果时，用 jieba 分词逐词匹配
-            if not rows:
-                words = [w for w in jieba.cut(query) if len(w) > 1]
-                if words:
-                    where_clause = " AND ".join(["s.text LIKE ?" for _ in words])
-                    params = [f"%{w}%" for w in words] + [limit]
-                    rows = self._conn.execute(f"""
-                        SELECT s.*, r.filename as recording_filename
-                        FROM segments s
-                        JOIN recordings r ON r.id = s.recording_id
-                        WHERE {where_clause}
-                        ORDER BY s.start_time
-                        LIMIT ?
-                    """, params).fetchall()
 
             return [
                 SearchResult(
@@ -123,17 +105,14 @@ class SearchEngine:
             return []
 
     def hybrid_search(self, query: str, limit: int = 20) -> list[SearchResult]:
-        """语义搜索为主，关键词补漏。
-
-        语义搜索覆盖大部分场景，但人名和短缩写（如"张三"、"GPU"）
-        语义分数偏低会漏掉，用关键词 LIKE 兜底。
-        去重按 recording_id + 时间戳，取较高分。
-        """
-        sem = self.semantic_search(query, limit)
+        """关键词 LIKE 搜索，语义搜索补充。"""
         kw = self.keyword_search(query, limit)
+        if len(kw) >= limit:
+            return kw
 
+        sem = self.semantic_search(query, limit)
         best: dict[str, SearchResult] = {}
-        for r in sem + kw:
+        for r in kw + sem:
             key = f"{r.recording_id}_{r.segment.start:.1f}"
             if key not in best or r.score > best[key].score:
                 best[key] = r
