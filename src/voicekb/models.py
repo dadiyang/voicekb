@@ -28,6 +28,7 @@ class Recording(BaseModel):
     segments: list[Segment] = []
     speakers: list[str] = []
     summary: str = ""
+    category: str = ""  # LLM 自动分类，用户可修改
     tags: list[str] = []
     error: str | None = None
 

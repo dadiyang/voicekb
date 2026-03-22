@@ -39,6 +39,7 @@ class RecordingStore:
                 created_at TEXT NOT NULL,
                 status TEXT NOT NULL DEFAULT 'pending',
                 summary TEXT DEFAULT '',
+                category TEXT DEFAULT '',
                 tags TEXT DEFAULT '[]',
                 error TEXT,
                 speakers TEXT DEFAULT '[]'
@@ -118,12 +119,12 @@ class RecordingStore:
         # SQLite
         self._conn.execute(
             "INSERT OR REPLACE INTO recordings "
-            "(id, filename, title, source, duration, created_at, status, summary, tags, error, speakers) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "(id, filename, title, source, duration, created_at, status, summary, category, tags, error, speakers) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (recording.id, recording.filename, recording.title,
              recording.source, recording.duration,
              recording.created_at.isoformat(),
-             recording.status, recording.summary,
+             recording.status, recording.summary, recording.category,
              json.dumps(recording.tags), recording.error,
              json.dumps(recording.speakers)),
         )
@@ -221,6 +222,7 @@ class RecordingStore:
             id=row["id"],
             filename=row["filename"],
             title=row["title"] if "title" in row.keys() else "",
+            category=row["category"] if "category" in row.keys() else "",
             source=row["source"],
             duration=row["duration"],
             created_at=datetime.fromisoformat(row["created_at"]),
@@ -337,6 +339,23 @@ class RecordingStore:
 
         chunks.append(current)
         return chunks
+
+    # ── 分类管理 ──────────────────────────────────────────────────────
+
+    def get_categories(self) -> list[str]:
+        """获取所有已有的分类（去重）。"""
+        rows = self._conn.execute(
+            "SELECT DISTINCT category FROM recordings WHERE category != '' ORDER BY category"
+        ).fetchall()
+        return [r[0] for r in rows]
+
+    def update_category(self, recording_id: str, category: str) -> None:
+        """修改录音分类。"""
+        self._conn.execute(
+            "UPDATE recordings SET category = ? WHERE id = ?",
+            (category, recording_id),
+        )
+        self._conn.commit()
 
     # ── 术语管理 ──────────────────────────────────────────────────────
 

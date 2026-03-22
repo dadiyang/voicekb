@@ -114,6 +114,33 @@ class RAGEngine:
 
         return {"answer": answer, "sources": sources}
 
+    async def classify_recording(self, recording: Recording,
+                                 existing_categories: list[str]) -> str:
+        """根据录音内容自动分类。"""
+        if not recording.segments:
+            return "其他"
+
+        sample = "\n".join(
+            f"{s.speaker_id}: {s.text}" for s in recording.segments[:25]
+        )
+
+        cats_hint = ""
+        if existing_categories:
+            cats_hint = f"已有类别：{', '.join(existing_categories)}。优先从中选择，确实不合适才建议新类别。\n"
+
+        prompt = (
+            f"以下是一段录音的对话内容：\n\n{sample}\n\n"
+            f"{cats_hint}"
+            "请为这段录音分配一个类别标签。\n"
+            "常见类别参考：工作会议、项目讨论、技术评审、面试、培训、日常聊天、电话沟通、讲座分享\n"
+            "要求：只输出类别名称，2-4个字，不要解释。"
+        )
+        category = await self._llm.generate(prompt, max_tokens=20)
+        category = category.strip().strip("\"'《》「」·").strip()
+        if not category or len(category) > 10:
+            return "其他"
+        return category
+
     async def generate_title(self, recording: Recording) -> str:
         """根据录音内容生成简短可读的标题。"""
         if not recording.segments:

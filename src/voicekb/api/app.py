@@ -183,9 +183,15 @@ async def _process_recording(recording_id: str, audio_path: Path) -> None:
         title = await _rag.generate_title(recording)
         recording.title = title
 
-        _progress[recording_id] = {"step": "生成摘要", "percent": 93}
+        _progress[recording_id] = {"step": "生成摘要", "percent": 92}
         summary = await _rag.summarize_recording(recording)
         recording.summary = summary
+
+        # 自动分类
+        _progress[recording_id] = {"step": "自动分类", "percent": 96}
+        existing_cats = _store.get_categories()
+        category = await _rag.classify_recording(recording, existing_cats)
+        recording.category = category
 
         # 保存结果
         _store.save_recording(recording)
@@ -286,6 +292,23 @@ async def delete_recording(recording_id: str):
 
     logger.info("删除录音: %s", recording_id)
     return {"deleted": True}
+
+
+# ── 分类 ──────────────────────────────────────────────────────────────
+
+@app.get("/api/categories")
+async def list_categories():
+    assert _store is not None
+    return _store.get_categories()
+
+class CategoryRequest(BaseModel):
+    category: str
+
+@app.post("/api/recordings/{recording_id}/category")
+async def update_category(recording_id: str, req: CategoryRequest):
+    assert _store is not None
+    _store.update_category(recording_id, req.category)
+    return {"updated": True}
 
 
 # ── 术语管理 ──────────────────────────────────────────────────────────

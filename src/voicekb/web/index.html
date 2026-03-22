@@ -228,6 +228,30 @@ a { color: var(--color-primary); text-decoration: none; }
 .spk-3 { background: #DB2777; }
 .spk-4 { background: #7C3AED; }
 
+/* ===== Filter Bar — 分类筛选 ===== */
+.filter-bar {
+  display: flex; gap: 8px; padding: 0 12px 8px;
+  overflow-x: auto; -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.filter-bar::-webkit-scrollbar { display: none; }
+.filter-chip {
+  flex-shrink: 0; height: 30px; padding: 0 14px;
+  border-radius: var(--radius-full); font-size: 13px; font-weight: 500;
+  border: 1.5px solid var(--color-border); background: var(--color-bg-card);
+  color: var(--color-text-secondary); cursor: pointer; transition: all 0.15s;
+  white-space: nowrap;
+}
+.filter-chip.active {
+  background: var(--color-primary); color: #fff;
+  border-color: var(--color-primary); box-shadow: 0 2px 8px rgba(79,70,229,0.2);
+}
+.category-tag {
+  display: inline-flex; align-items: center; height: 20px; padding: 0 8px;
+  border-radius: var(--radius-sm); font-size: 11px; font-weight: 500;
+  background: #E3F2FD; color: #1677FF;
+}
+
 /* ===== Search — 继承 hotel_shop input 规范 ===== */
 .search-bar {
   display: flex; gap: 8px; padding: 0 12px; margin-bottom: 8px;
@@ -451,16 +475,31 @@ async function api(path, opts = {}) {
 }
 
 /* ── Home View: 搜索 + 录音列表 ───────────────────────────────────── */
+let activeCategory = '';  // 当前筛选的分类
+
 async function loadRecordings() {
   const view = document.getElementById('viewHome');
   try {
     recordings = await api('/api/recordings');
+    const categories = await api('/api/categories');
 
-    // 搜索栏 + 结果/列表容器
     const searchBar = `
       <div class="search-bar">
         <input class="search-input" id="homeSearchInput" placeholder="搜索录音内容..." oninput="debounceHomeSearch()">
       </div>`;
+
+    // 分类筛选条
+    let filterBar = '';
+    if (categories.length > 0) {
+      const chips = categories.map(c =>
+        `<button class="filter-chip ${activeCategory === c ? 'active' : ''}" onclick="filterByCategory('${c}')">${c}</button>`
+      ).join('');
+      filterBar = `
+        <div class="filter-bar">
+          <button class="filter-chip ${activeCategory === '' ? 'active' : ''}" onclick="filterByCategory('')">全部</button>
+          ${chips}
+        </div>`;
+    }
 
     if (recordings.length === 0) {
       view.innerHTML = `
@@ -479,14 +518,21 @@ async function loadRecordings() {
       return;
     }
 
-    const cards = recordings.map(r => renderRecordingCard(r)).join('');
+    const filtered = activeCategory ? recordings.filter(r => r.category === activeCategory) : recordings;
+    const cards = filtered.map(r => renderRecordingCard(r)).join('');
     view.innerHTML = `
       ${searchBar}
+      ${filterBar}
       <div id="homeSearchResults" class="hidden"></div>
       <div id="homeRecordingList">${cards}</div>`;
   } catch(e) {
     view.innerHTML = '<div class="card"><p>加载失败，请稍后重试</p></div>';
   }
+}
+
+function filterByCategory(cat) {
+  activeCategory = cat;
+  loadRecordings();
 }
 
 let homeSearchTimer;
@@ -554,7 +600,10 @@ function renderRecordingCard(r) {
           <div class="rec-meta">${date} · ${dur} <span class="rec-status ${statusClass}">${statusText}</span></div>
         </div>
       </div>
-      ${speakers ? `<div class="rec-speakers">${speakers}</div>` : ''}
+      <div class="rec-speakers">
+        ${r.category ? `<span class="category-tag">${r.category}</span>` : ''}
+        ${speakers}
+      </div>
     </div>`;
 }
 
@@ -745,6 +794,10 @@ function showRecordingMenu(recId) {
   modal.innerHTML = `
     <div class="modal-sheet">
       <div class="modal-title">\u64cd\u4f5c</div>
+      <div class="profile-menu-item" onclick="closeModal();showCategoryEditor('${recId}')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+        <span>\u4fee\u6539\u5206\u7c7b</span>
+      </div>
       <div class="profile-menu-item" onclick="closeModal();reprocessRecording('${recId}')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
         <span>\u91cd\u65b0\u8bc6\u522b</span>
@@ -758,6 +811,45 @@ function showRecordingMenu(recId) {
       </div>
     </div>`;
   document.body.appendChild(modal);
+}
+
+async function showCategoryEditor(recId) {
+  const categories = await api('/api/categories');
+  const rec = recordings.find(r => r.id === recId);
+  const current = rec?.category || '';
+
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.id = 'renameModal';
+  modal.onclick = (e) => { if (e.target === modal) closeModal(); };
+
+  const chips = ['工作会议','项目讨论','技术评审','日常聊天','电话沟通','培训讲座']
+    .concat(categories.filter(c => !['工作会议','项目讨论','技术评审','日常聊天','电话沟通','培训讲座'].includes(c)))
+    .map(c => `<button class="filter-chip ${c === current ? 'active' : ''}" onclick="selectCategory('${recId}','${c}')" style="margin-bottom:8px">${c}</button>`)
+    .join(' ');
+
+  modal.innerHTML = `
+    <div class="modal-sheet">
+      <div class="modal-title">\u4fee\u6539\u5206\u7c7b</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px">${chips}</div>
+      <div style="display:flex;gap:8px">
+        <input class="modal-input" id="newCatInput" placeholder="\u81ea\u5b9a\u4e49\u5206\u7c7b..." style="margin-bottom:0;flex:1">
+        <button class="btn btn-primary btn-sm" onclick="selectCategory('${recId}', document.getElementById('newCatInput').value.trim())">\u786e\u5b9a</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+}
+
+async function selectCategory(recId, category) {
+  if (!category) return;
+  await api(`/api/recordings/${recId}/category`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({category}),
+  });
+  closeModal();
+  showToast(`\u5df2\u5206\u7c7b\u4e3a\u300c${category}\u300d`);
+  if (currentRecording?.id === recId) openRecording(recId);
 }
 
 async function reprocessRecording(recId) {
