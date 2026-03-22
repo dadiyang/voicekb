@@ -319,7 +319,7 @@ onShow(loadStats)
 }
 .menu-icon {
   font-size: 40rpx;
-  color: $color-text-secondary;
+  color: $color-primary;
   flex-shrink: 0;
 }
 .menu-text {
