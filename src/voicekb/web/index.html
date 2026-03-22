@@ -683,12 +683,12 @@ function renderDetail(rec) {
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
         返回
       </div>
-      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between">
         <div style="flex:1">
           <div class="detail-title">${rec.title || rec.filename}</div>
           <div class="detail-meta">${date} · ${dur} · ${(rec.speakers||[]).join(', ')}</div>
         </div>
-        <button class="btn btn-sm" style="background:#FFEBEE;color:#FF3B30;flex-shrink:0;margin-top:2px" onclick="deleteRecording('${rec.id}')">删除</button>
+        <button onclick="showRecordingMenu('${rec.id}')" style="border:none;background:none;padding:4px 8px;cursor:pointer;color:var(--color-text-tertiary);font-size:20px">···</button>
       </div>
     </div>
     <div class="audio-player">
@@ -735,6 +735,25 @@ function seekAudio(startTime, idx) {
     const item = document.querySelector(`.transcript-item[data-idx="${idx}"]`);
     if (item) item.classList.add('playing');
   }
+}
+
+function showRecordingMenu(recId) {
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.id = 'renameModal';
+  modal.onclick = (e) => { if (e.target === modal) closeModal(); };
+  modal.innerHTML = `
+    <div class="modal-sheet">
+      <div class="modal-title">\u64cd\u4f5c</div>
+      <div class="profile-menu-item" onclick="closeModal();deleteRecording('${recId}')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#FF3B30" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+        <span style="color:#FF3B30">\u5220\u9664\u5f55\u97f3</span>
+      </div>
+      <div style="margin-top:12px">
+        <button class="btn btn-outline btn-block" onclick="closeModal()">\u53d6\u6d88</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
 }
 
 async function deleteRecording(recId) {
