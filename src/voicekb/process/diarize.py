@@ -51,6 +51,10 @@ class Diarizer:
 
         result = self._pipeline(str(actual_path), **params)
 
+        # 清理临时转换文件
+        if actual_path != audio_path and actual_path.exists():
+            actual_path.unlink()
+
         # pyannote v4: result.speaker_diarization (Annotation) + result.speaker_embeddings (ndarray)
         annotation = result.speaker_diarization
         embeddings_matrix = result.speaker_embeddings  # shape: (num_speakers, 256)

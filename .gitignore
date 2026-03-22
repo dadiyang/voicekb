@@ -6,8 +6,6 @@ venv/
 .venv/
 
 # Data
-data/
-*.db
 
 # Build
 client/dist/

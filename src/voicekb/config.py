@@ -10,13 +10,13 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="VOICEKB_", env_file=".env")
 
-    # ── 路径 ──────────────────────────────────────────────────────────────
-    data_dir: Path = Path("data")
-    db_path: Path = Path("data/voicekb.db")
-    markdown_dir: Path = Path("data/transcripts")
-    upload_dir: Path = Path("data/uploads")
-    speaker_db_path: Path = Path("data/speakers.db")
-    chroma_dir: Path = Path("data/chroma")
+    # ── 路径（默认 ~/.voicekb/，用户数据不在项目目录中）─────────────────
+    data_dir: Path = Path.home() / ".voicekb"
+    db_path: Path = Path.home() / ".voicekb" / "voicekb.db"
+    markdown_dir: Path = Path.home() / ".voicekb" / "transcripts"
+    upload_dir: Path = Path.home() / ".voicekb" / "uploads"
+    speaker_db_path: Path = Path.home() / ".voicekb" / "speakers.db"
+    chroma_dir: Path = Path.home() / ".voicekb" / "chroma"
 
     # ── ASR ────────────────────────────────────────────────────────────────
     whisper_model: str = "small"
