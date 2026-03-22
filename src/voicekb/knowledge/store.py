@@ -68,6 +68,15 @@ class RecordingStore:
             )
         """)
 
+        # 摘要 prompt 模板表（按分类自定义）
+        self._conn.execute("""
+            CREATE TABLE IF NOT EXISTS summary_prompts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                category TEXT NOT NULL UNIQUE,
+                prompt TEXT NOT NULL
+            )
+        """)
+
         # 录音分类预置表
         self._conn.execute("""
             CREATE TABLE IF NOT EXISTS category_presets (
@@ -424,6 +433,41 @@ class RecordingStore:
     def delete_vocabulary(self, term_id: int) -> None:
         """删除术语。"""
         self._conn.execute("DELETE FROM vocabulary WHERE id = ?", (term_id,))
+        self._conn.commit()
+
+    # ── 摘要 prompt 模板管理 ────────────────────────────────────────────
+
+    def get_summary_prompt(self, category: str) -> str | None:
+        """获取指定分类的自定义摘要 prompt。None 表示使用默认。"""
+        row = self._conn.execute(
+            "SELECT prompt FROM summary_prompts WHERE category = ?", (category,)
+        ).fetchone()
+        if row:
+            return row[0]
+        # 尝试通用 prompt（category="_default"）
+        row = self._conn.execute(
+            "SELECT prompt FROM summary_prompts WHERE category = '_default'"
+        ).fetchone()
+        return row[0] if row else None
+
+    def get_all_summary_prompts(self) -> list[dict]:
+        """获取所有自定义摘要 prompt。"""
+        rows = self._conn.execute(
+            "SELECT id, category, prompt FROM summary_prompts ORDER BY category"
+        ).fetchall()
+        return [{"id": r[0], "category": r[1], "prompt": r[2]} for r in rows]
+
+    def save_summary_prompt(self, category: str, prompt: str) -> None:
+        """保存（upsert）摘要 prompt。category="_default" 表示通用模板。"""
+        self._conn.execute(
+            "INSERT INTO summary_prompts (category, prompt) VALUES (?, ?) "
+            "ON CONFLICT(category) DO UPDATE SET prompt = ?",
+            (category, prompt, prompt),
+        )
+        self._conn.commit()
+
+    def delete_summary_prompt(self, prompt_id: int) -> None:
+        self._conn.execute("DELETE FROM summary_prompts WHERE id = ?", (prompt_id,))
         self._conn.commit()
 
     def close(self) -> None:

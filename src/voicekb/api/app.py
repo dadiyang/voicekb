@@ -181,21 +181,19 @@ async def _process_recording(recording_id: str, audio_path: Path) -> None:
             None, _pipeline.process, audio_path, recording_id, progress_cb,
         )
 
-        # 生成标题和摘要
-        _progress[recording_id] = {"step": "生成标题", "percent": 90}
-        title = await _rag.generate_title(recording)
-        recording.title = title
-
-        _progress[recording_id] = {"step": "生成摘要", "percent": 92}
-        summary = await _rag.summarize_recording(recording)
-        recording.summary = summary
-
-        # 自动分类
-        _progress[recording_id] = {"step": "自动分类", "percent": 96}
+        # LLM 第 1 步：标题 + 分类（合并为 1 次调用）
+        _progress[recording_id] = {"step": "分析内容", "percent": 90}
         presets = _store.get_category_presets()
         existing_cats = [p["name"] for p in presets]
-        category = await _rag.classify_recording(recording, existing_cats)
+        title, category = await _rag.classify_and_title(recording, existing_cats)
+        recording.title = title
         recording.category = category
+
+        # LLM 第 2 步：用分类专属 prompt 生成摘要
+        _progress[recording_id] = {"step": "生成摘要", "percent": 94}
+        custom_prompt = _store.get_summary_prompt(category)
+        summary = await _rag.summarize_recording(recording, custom_prompt=custom_prompt)
+        recording.summary = summary
 
         # 保存结果
         _store.save_recording(recording)
@@ -323,6 +321,30 @@ async def update_category(recording_id: str, req: CategoryRequest):
     assert _store is not None
     _store.update_category(recording_id, req.category)
     return {"updated": True}
+
+
+# ── 摘要 prompt 模板管理 ──────────────────────────────────────────────
+
+class PromptRequest(BaseModel):
+    category: str  # "_default" 表示通用模板
+    prompt: str
+
+@app.get("/api/summary-prompts")
+async def list_summary_prompts():
+    assert _store is not None
+    return _store.get_all_summary_prompts()
+
+@app.post("/api/summary-prompts")
+async def save_summary_prompt(req: PromptRequest):
+    assert _store is not None
+    _store.save_summary_prompt(req.category, req.prompt)
+    return {"saved": True}
+
+@app.post("/api/summary-prompts/{prompt_id}/delete")
+async def delete_summary_prompt(prompt_id: int):
+    assert _store is not None
+    _store.delete_summary_prompt(prompt_id)
+    return {"deleted": True}
 
 
 # ── 术语管理 ──────────────────────────────────────────────────────────
