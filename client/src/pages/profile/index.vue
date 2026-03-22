@@ -32,22 +32,22 @@
     <!-- 菜单项 -->
     <view class="menu-section">
     <view class="profile-menu-item" @click="manageSpeakers">
-      <text class="ti ti-users menu-icon"></text>
+      <text class="menu-emoji">👥</text>
       <text class="menu-text">说话人管理</text>
       <text class="ti ti-chevron-right menu-arrow"></text>
     </view>
     <view class="profile-menu-item" @click="manageVocab">
-      <text class="ti ti-vocabulary menu-icon"></text>
+      <text class="menu-emoji">📖</text>
       <text class="menu-text">术语管理</text>
       <text class="ti ti-chevron-right menu-arrow"></text>
     </view>
     <view class="profile-menu-item" @click="managePrompts">
-      <text class="ti ti-file-text menu-icon"></text>
+      <text class="menu-emoji">📝</text>
       <text class="menu-text">摘要模板</text>
       <text class="ti ti-chevron-right menu-arrow"></text>
     </view>
     <view class="profile-menu-item" @click="showAbout">
-      <text class="ti ti-info-circle menu-icon"></text>
+      <text class="menu-emoji">💡</text>
       <text class="menu-text">关于 VoiceKB</text>
       <text class="ti ti-chevron-right menu-arrow"></text>
     </view>
@@ -317,9 +317,8 @@ onShow(loadStats)
   margin-bottom: $spacing-md;
   box-shadow: $shadow-md;
 }
-.menu-icon {
-  font-size: 40rpx;
-  color: $color-primary;
+.menu-emoji {
+  font-size: 36rpx;
   flex-shrink: 0;
 }
 .menu-text {
