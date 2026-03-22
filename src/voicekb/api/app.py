@@ -69,10 +69,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 静态文件（uni-app 构建产物或旧 web 目录）
-h5_dir = Path(__file__).parent.parent.parent.parent / "client" / "dist" / "build" / "h5"
+# 静态文件 — 使用打磨好的 H5 前端
 web_dir = Path(__file__).parent.parent / "web"
-_frontend_dir = h5_dir if h5_dir.exists() else web_dir
+_frontend_dir = web_dir
 
 # 挂载 assets/ 目录（uni-app 构建的 JS/CSS）
 _assets_dir = _frontend_dir / "assets" if _frontend_dir.exists() else None
@@ -109,9 +108,9 @@ class CategoryRequest(BaseModel):
 async def index():
     """返回 H5 首页。"""
     from fastapi.responses import HTMLResponse
-    html = _frontend_dir / "index.html" if _frontend_dir.exists() else None
-    if html and html.exists():
-        return HTMLResponse(html.read_text(encoding="utf-8"))
+    html_path = web_dir / "index.html"
+    if html_path.exists():
+        return HTMLResponse(html_path.read_text(encoding="utf-8"))
     return {"message": "VoiceKB API"}
 
 
