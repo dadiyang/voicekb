@@ -1,16 +1,6 @@
 <template>
   <view class="page-white">
-    <!-- 自定义导航栏 -->
-    <view class="nav-bar" :style="{paddingTop: statusBarHeight + 'px'}">
-      <view class="nav-back" @click="goBack">
-        <text class="ti ti-arrow-left nav-back-icon"></text>
-        <text>返回</text>
-      </view>
-      <view class="nav-more" @click="showRecordingMenu" v-if="recording && recording.status !== 'processing'">
-        <text class="ti ti-dots"></text>
-        <text class="nav-more-text">操作</text>
-      </view>
-    </view>
+    <!-- 系统导航栏自动提供返回按钮 -->
 
     <!-- 处理中 -->
     <view v-if="recording && recording.status === 'processing'" class="card" style="margin-top: 24rpx">
@@ -28,6 +18,9 @@
           <view class="detail-title-wrap">
             <text class="detail-title">{{ recording.title || recording.filename }}</text>
             <text class="detail-meta">{{ dateDisplay }} · {{ durDisplay }} · {{ (recording.speakers||[]).join(', ') }}</text>
+          </view>
+          <view class="action-btn" @click="showRecordingMenu" v-if="recording.status !== 'processing'">
+            <text class="ti ti-dots action-icon"></text>
           </view>
         </view>
       </view>
@@ -605,12 +598,16 @@ async function doRename() {
 }
 
 // ── 摘要模板编辑 ────────────────────────────────────────────────
-async function openPromptEditor() {
+function openPromptEditor() {
   const category = recording.value?.category || '_default'
-  promptCategory.value = category
+  uni.navigateTo({ url: `/pages/prompts/edit?cat=${encodeURIComponent(category)}` })
+}
+
+async function _old_openPromptEditor() {
+  const category = recording.value?.category || '_default'
+  const promptCategory = ref(category)
 
   try {
-    // 获取已有的自定义 prompts
     const allPrompts = await promptApi.list()
     const catPrompt = allPrompts.find(p => p.category === category)
 
@@ -697,20 +694,13 @@ function goBack() { uni.navigateBack() }
 .page-white { min-height: 100vh; background: $color-bg-card; }
 
 /* ── 自定义导航栏 ─────────────────────────────────────── */
-.nav-bar {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: $spacing-md $spacing-lg; background: $color-bg-card;
-  border-bottom: 1rpx solid $color-border;
-  position: sticky; top: 0; z-index: 60;
+/* 操作按钮（在标题旁） */
+.action-btn {
+  width: 64rpx; height: 64rpx; border-radius: 50%;
+  background: $color-bg-hover; display: flex;
+  align-items: center; justify-content: center; flex-shrink: 0;
 }
-.nav-back { display: flex; align-items: center; gap: $spacing-xs; font-size: $font-base; color: $color-primary; }
-.nav-back-icon { font-size: 36rpx; }
-.nav-more {
-  display: flex; align-items: center; gap: 6rpx;
-  font-size: 26rpx; color: $color-primary; padding: 8rpx 20rpx;
-  border: 2rpx solid $color-primary; border-radius: $radius-full;
-}
-.nav-more-text { font-size: 24rpx; }
+.action-icon { font-size: 36rpx; color: $color-text-secondary; }
 
 /* ── 详情头部 ─────────────────────────────────────────── */
 .detail-header { padding: $spacing-lg; }
