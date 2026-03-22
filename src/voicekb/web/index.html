@@ -542,17 +542,25 @@ async function loadRecordings() {
 
     if (recordings.length === 0) {
       view.innerHTML = `
-        ${searchBar}
         <div class="empty-state">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:80px;height:80px">
             <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/>
             <path d="M19 10v2a7 7 0 01-14 0v-2"/>
             <line x1="12" y1="19" x2="12" y2="23"/>
             <line x1="8" y1="23" x2="16" y2="23"/>
           </svg>
-          <h3>还没有录音</h3>
-          <p>点击右下角 + 上传你的第一段录音</p>
-          <label class="btn btn-primary" for="fileInput" style="cursor:pointer">上传录音</label>
+          <h3>上传你的第一段录音</h3>
+          <p style="margin-bottom:20px">支持 m4a、mp3、wav 等格式</p>
+          <label class="btn btn-primary" for="fileInput" style="cursor:pointer">选择音频文件</label>
+          <div style="margin-top:32px;text-align:left;padding:0 16px">
+            <div style="font-size:13px;font-weight:600;color:var(--color-text-secondary);margin-bottom:12px">VoiceKB 会帮你：</div>
+            <div style="font-size:13px;color:var(--color-text-tertiary);line-height:2">
+              \u{1F3A4} 自动识别每个人说了什么<br>
+              \u{1F50D} 支持关键词和语义搜索<br>
+              \u{1F4DD} 智能生成会议摘要<br>
+              \u{1F4AC} AI 问答，直接问录音内容
+            </div>
+          </div>
         </div>`;
       return;
     }
@@ -807,19 +815,33 @@ function renderDetail(rec) {
   let colorIdx = 0;
   (rec.speakers||[]).forEach(s => { speakerColors[s] = colorIdx++; });
 
-  const segments = (rec.segments||[]).map((seg, idx) => {
-    const ci = speakerColors[seg.speaker_id] ?? 0;
-    const ts = `${String(Math.floor(seg.start/60)).padStart(2,'0')}:${String(Math.floor(seg.start%60)).padStart(2,'0')}`;
-    const initial = seg.speaker_id.charAt(0) || 'S';
+  // 合并连续同一说话人的发言，减少视觉重复
+  const merged = [];
+  (rec.segments||[]).forEach((seg, idx) => {
+    const last = merged[merged.length - 1];
+    if (last && last.speaker_id === seg.speaker_id && seg.start - last.end < 3) {
+      last.texts.push(seg.text);
+      last.end = seg.end;
+      last.indices.push(idx);
+    } else {
+      merged.push({speaker_id: seg.speaker_id, start: seg.start, end: seg.end, texts: [seg.text], indices: [idx]});
+    }
+  });
+
+  const segments = merged.map(g => {
+    const ci = speakerColors[g.speaker_id] ?? 0;
+    const ts = `${String(Math.floor(g.start/60)).padStart(2,'0')}:${String(Math.floor(g.start%60)).padStart(2,'0')}`;
+    const initial = g.speaker_id.charAt(0) || 'S';
+    const firstIdx = g.indices[0];
     return `
-      <div class="transcript-item" data-start="${seg.start}" data-end="${seg.end}" data-idx="${idx}" onclick="seekAudio(${seg.start}, ${idx})">
+      <div class="transcript-item" data-start="${g.start}" data-end="${g.end}" data-idx="${firstIdx}" onclick="seekAudio(${g.start}, ${firstIdx})">
         <div class="transcript-avatar spk-${ci % 5}">${initial}</div>
         <div class="transcript-bubble">
           <div class="transcript-speaker">
-            <span class="speaker-tag" onclick="event.stopPropagation();showRenameModal('${seg.speaker_id}')" style="padding:1px 6px;font-size:11px">${seg.speaker_id}</span>
+            <span class="speaker-tag" onclick="event.stopPropagation();showRenameModal('${g.speaker_id}')" style="padding:1px 6px;font-size:11px">${g.speaker_id}</span>
             <span class="ts">${ts}</span>
           </div>
-          <div class="transcript-text">${seg.text}</div>
+          <div class="transcript-text">${g.texts.join('')}</div>
         </div>
       </div>`;
   }).join('');
@@ -1066,12 +1088,23 @@ async function initChatView() {
     return;
   }
 
+  // 动态生成快捷提问（基于实际说话人和录音）
+  let quickChips = '';
+  try {
+    const spks = await api('/api/speakers');
+    const namedSpks = spks.filter(s => !s.name.startsWith('说话人')).slice(0, 2);
+    const chips = ['最近讨论了什么？', '有哪些待办事项？'];
+    namedSpks.forEach(s => chips.push(`${s.name}说了什么？`));
+    if (chips.length < 4) chips.push('关键决策总结');
+    quickChips = chips.map(c => `<button class="filter-chip" onclick="quickAsk(this.textContent)" style="flex-shrink:0;font-size:11px">${c}</button>`).join('');
+  } catch(e) {
+    quickChips = ['最近讨论了什么？','有哪些待办？','关键决策总结'].map(c => `<button class="filter-chip" onclick="quickAsk(this.textContent)" style="flex-shrink:0;font-size:11px">${c}</button>`).join('');
+  }
+
   view.innerHTML = `
     <div class="chat-messages" id="chatMessages"></div>
     <div style="display:flex;gap:6px;padding:4px 12px;overflow-x:auto;scrollbar-width:none;flex-shrink:0" id="chatQuickBar">
-      <button class="filter-chip" onclick="quickAsk(this.textContent)" style="flex-shrink:0;font-size:11px">最近讨论了什么？</button>
-      <button class="filter-chip" onclick="quickAsk(this.textContent)" style="flex-shrink:0;font-size:11px">有哪些待办事项？</button>
-      <button class="filter-chip" onclick="quickAsk(this.textContent)" style="flex-shrink:0;font-size:11px">关键决策总结</button>
+      ${quickChips}
     </div>
     <div class="chat-input-bar">
       <input class="chat-input" id="chatInput" placeholder="输入你的问题..." onkeypress="if(event.key==='Enter')sendChat()">
