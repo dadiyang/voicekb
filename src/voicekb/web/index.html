@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>VoiceKB</title>
+<script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>
 <style>
 /* ===== Design Tokens — 从 hotel_shop 设计系统继承 ===== */
 :root {
@@ -200,7 +201,13 @@ a { color: var(--color-primary); text-decoration: none; }
   border-radius: var(--radius-md); padding: 16px; margin: 0 16px 12px;
 }
 .summary-card h4 { font-size: 14px; font-weight: 600; color: var(--color-primary-dark); margin-bottom: 8px; }
-.summary-card .summary-text { font-size: 13px; color: var(--color-text-secondary); line-height: 1.7; white-space: pre-wrap; }
+.summary-card .summary-text { font-size: 13px; color: var(--color-text-secondary); line-height: 1.7; }
+.summary-card .summary-text h1,.summary-card .summary-text h2,.summary-card .summary-text h3 { font-size: 14px; font-weight: 600; color: var(--color-text-primary); margin: 10px 0 4px; }
+.summary-card .summary-text ul,.summary-card .summary-text ol { padding-left: 18px; margin: 4px 0; }
+.summary-card .summary-text li { margin-bottom: 3px; }
+.summary-card .summary-text p { margin-bottom: 6px; }
+.summary-card .summary-text hr { border: none; border-top: 1px solid var(--color-border); margin: 8px 0; }
+.summary-card .summary-text strong { color: var(--color-text-primary); }
 
 .transcript {
   padding: 0 16px;
@@ -1804,62 +1811,13 @@ function friendlyDuration(seconds) {
   return s > 0 ? `${m}分${s}秒` : `${m}分钟`;
 }
 
-/* ── Markdown 格式化 ──────────────────────────────────────────────── */
+/* ── Markdown 格式化（marked.js）──────────────────────────────────── */
 function formatMarkdown(text) {
-  // 按段落分割处理
-  const lines = text.split('\n');
-  let html = '';
-  let inList = false;
-
-  for (let line of lines) {
-    let trimmed = line.trim();
-    if (!trimmed) {
-      if (inList) { html += '</ul>'; inList = false; }
-      html += '<div style="height:6px"></div>';
-      continue;
-    }
-
-    // 标题
-    if (trimmed.startsWith('### ')) {
-      if (inList) { html += '</ul>'; inList = false; }
-      html += `<div style="font-weight:600;margin:10px 0 4px;font-size:13px;color:var(--color-text-primary)">${trimmed.slice(4).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')}</div>`;
-      continue;
-    }
-
-    // 有序列表（1. 2. 等）
-    const olMatch = trimmed.match(/^(\d+)\.\s+(.+)/);
-    if (olMatch) {
-      if (!inList) { html += '<ul style="padding-left:20px;margin:4px 0;list-style:none">'; inList = true; }
-      html += `<li style="margin-bottom:4px;text-indent:-1em;padding-left:1em"><span style="color:var(--color-primary);font-weight:600">${olMatch[1]}.</span> ${olMatch[2].replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')}</li>`;
-      continue;
-    }
-
-    // 无序列表（- 开头，含缩进的子项）
-    const ulMatch = trimmed.match(/^[-•]\s+(.+)/);
-    if (ulMatch) {
-      const indent = line.search(/\S/);
-      if (!inList) { html += '<ul style="padding-left:16px;margin:4px 0">'; inList = true; }
-      const ml = indent > 4 ? 'margin-left:16px;' : '';
-      html += `<li style="margin-bottom:3px;${ml}">${ulMatch[1].replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')}</li>`;
-      continue;
-    }
-
-    // 分割线
-    if (trimmed === '---' || trimmed === '***') {
-      if (inList) { html += '</ul>'; inList = false; }
-      html += '<div style="height:1px;background:var(--color-border);margin:8px 0"></div>';
-      continue;
-    }
-
-    // 普通段落
-    if (inList) { html += '</ul>'; inList = false; }
-    let content = trimmed
-      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\s{2,}$/, '');  // 去尾部空格
-    html += `<div style="margin-bottom:4px">${content}</div>`;
+  if (typeof marked !== 'undefined') {
+    return marked.parse(text, {breaks: true});
   }
-  if (inList) html += '</ul>';
-  return html;
+  // fallback：marked 未加载时简单处理
+  return text.replace(/\n/g, '<br>');
 }
 
 /* ── Init ───────────────────────────────────────────────────────────── */
