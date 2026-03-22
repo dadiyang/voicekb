@@ -609,7 +609,7 @@ async function doHomeSearch() {
         '<mark class="search-highlight">$1</mark>'
       );
       return `
-        <div class="search-result-item" onclick="openRecording('${r.recording_id}')">
+        <div class="search-result-item" onclick="openRecording('${r.recording_id}', ${r.segment.start || 0})">
           <div style="font-size:12px;color:var(--color-text-tertiary);margin-bottom:3px">${(recordings.find(rc=>rc.id===r.recording_id)?.title) || r.recording_filename} · ${r.segment.speaker_id}</div>
           <div style="font-size:14px;line-height:1.6">${text}</div>
         </div>`;
@@ -726,7 +726,7 @@ function watchProgress(recId) {
 }
 
 /* ── Recording Detail ──────────────────────────────────────────────── */
-async function openRecording(recId) {
+async function openRecording(recId, seekTime) {
   const view = document.getElementById('viewDetail');
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   view.classList.add('active');
@@ -770,6 +770,23 @@ async function openRecording(recId) {
       }, 2000);
     } else {
       renderDetail(rec);
+      // 搜索结果跳转：滚动到对应时间段并高亮
+      if (seekTime > 0) {
+        setTimeout(() => {
+          const items = document.querySelectorAll('.transcript-item');
+          for (const item of items) {
+            const start = parseFloat(item.dataset.start);
+            if (start >= seekTime - 1) {
+              item.classList.add('playing');
+              item.scrollIntoView({behavior: 'smooth', block: 'center'});
+              // 播放
+              const audio = document.getElementById('audioPlayer');
+              if (audio) { audio.currentTime = start; audio.play(); }
+              break;
+            }
+          }
+        }, 300);
+      }
     }
   } catch(e) {
     view.innerHTML = '<div class="card"><p>加载失败</p></div>';
