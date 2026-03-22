@@ -396,14 +396,18 @@ a { color: var(--color-primary); text-decoration: none; }
 }
 
 /* Text mode toggle */
+.text-mode-toggle {
+  display: inline-flex; gap: 0; background: var(--color-bg-hover);
+  border-radius: var(--radius-full); padding: 3px;
+}
 .text-mode-btn {
-  padding: 3px 10px; border-radius: var(--radius-full); font-size: 11px;
+  padding: 4px 12px; border-radius: var(--radius-full); font-size: 12px;
   color: var(--color-text-tertiary); cursor: pointer; font-weight: 500;
-  transition: all 0.15s;
+  transition: all 0.15s; white-space: nowrap;
 }
 .text-mode-btn.active {
   background: var(--color-primary); color: #fff;
-  box-shadow: 0 1px 3px rgba(79,70,229,0.2);
+  box-shadow: 0 2px 6px rgba(79,70,229,0.25);
 }
 
 /* Transcript clickable */
@@ -907,7 +911,7 @@ function renderDetail(rec) {
     <div style="padding:0 16px;margin-bottom:12px">
       <div style="display:flex;justify-content:space-between;align-items:center">
         <div style="font-size:15px;font-weight:600">对话记录</div>
-        ${hasPolished ? '<div style="display:flex;gap:4px;background:var(--color-bg-hover);border-radius:var(--radius-full);padding:2px"><span class="text-mode-btn active" onclick="setTextMode(\'polished\')">流畅</span><span class="text-mode-btn" onclick="setTextMode(\'raw\')">原文</span></div>' : ''}
+        ${hasPolished ? '<div class="text-mode-toggle"><span class="text-mode-btn active" onclick="setTextMode(\'polished\')">流畅版</span><span class="text-mode-btn" onclick="setTextMode(\'raw\')">原文</span></div>' : ''}
       </div>
       ${(rec.speakers||[]).some(s => s.startsWith('说话人')) ? '<div style="font-size:11px;color:var(--color-text-tertiary);margin-top:4px">点击说话人标签可标注真实姓名</div>' : ''}
     </div>
@@ -1053,12 +1057,11 @@ async function resummarizeRecording(recId) {
 }
 
 async function reprocessRecording(recId) {
-  showToast('重新识别中...');
   try {
     await api(`/api/recordings/${recId}/reprocess`, {method:'POST'});
-    // 回到首页显示进度
-    backToList();
-    watchProgress(recId);
+    showToast('开始重新识别，请稍候...');
+    // 留在详情页显示进度
+    openRecording(recId);
   } catch(e) {
     showToast('操作失败: ' + e.message);
   }
