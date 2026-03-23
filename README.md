@@ -6,6 +6,8 @@
 
 <h4 align="center">Turn everyday recordings into a searchable, conversational personal knowledge base</h4>
 
+<p align="center"><a href="README_zh.md">中文文档</a></p>
+
 <p align="center">
   <img src="https://img.shields.io/badge/Deploy-Fully%20Local-success?style=flat-square" alt="Fully Local">
   <img src="https://img.shields.io/badge/Privacy-Data%20Never%20Leaves%20Your%20Server-blue?style=flat-square" alt="Privacy">
@@ -162,5 +164,3 @@ Configure via `.env` file or environment variables (prefix `VOICEKB_`):
 ## License
 
 [Apache-2.0](LICENSE)
-
-[中文文档](README_zh.md)
