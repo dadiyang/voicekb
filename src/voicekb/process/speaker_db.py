@@ -92,6 +92,12 @@ class SpeakerDB:
         self._conn.commit()
         logger.info("重命名说话人 %s -> %s", speaker_id, new_name)
 
+    def delete_speaker(self, speaker_id: str) -> None:
+        """删除说话人。"""
+        self._conn.execute("DELETE FROM speakers WHERE id = ?", (speaker_id,))
+        self._conn.commit()
+        logger.info("删除说话人: %s", speaker_id)
+
     def add_recording_to_speaker(self, speaker_id: str,
                                  recording_id: str) -> None:
         """将录音关联到说话人。"""

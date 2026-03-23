@@ -74,6 +74,7 @@ export const searchApi = {
 export const speakerApi = {
   list: () => api.get('/api/speakers'),
   rename: (speakerId, newName) => api.post('/api/speakers/rename', { speaker_id: speakerId, new_name: newName }),
+  delete: (speakerId, revert = false) => api.post(`/api/speakers/${speakerId}/delete?revert=${revert}`),
 }
 
 // 问答

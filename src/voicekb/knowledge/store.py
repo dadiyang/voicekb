@@ -195,6 +195,29 @@ class RecordingStore:
         )
         self._conn.commit()
 
+    def revert_speaker_name(self, speaker_name: str) -> int:
+        """将录音中某个说话人的标注恢复为'未知'。返回受影响的段数。"""
+        # segments 表
+        result = self._conn.execute(
+            "UPDATE segments SET speaker_id = '未知' WHERE speaker_id = ?",
+            (speaker_name,),
+        )
+        affected = result.rowcount
+
+        # recordings 表的 speakers JSON 字段
+        for rec in self._conn.execute("SELECT id, speakers FROM recordings"):
+            speakers = json.loads(rec[1])
+            if speaker_name in speakers:
+                speakers = [('未知' if s == speaker_name else s) for s in speakers]
+                self._conn.execute(
+                    "UPDATE recordings SET speakers = ? WHERE id = ?",
+                    (json.dumps(speakers, ensure_ascii=False), rec[0]),
+                )
+
+        self._conn.commit()
+        logger.info("恢复说话人标注: %s → 未知 (%d 段)", speaker_name, affected)
+        return affected
+
     def get_recording(self, recording_id: str) -> Recording | None:
         """获取单条录音。"""
         row = self._conn.execute(

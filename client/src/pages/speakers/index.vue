@@ -13,7 +13,8 @@
       <text class="empty-sub">上传录音后系统会自动识别说话人</text>
     </view>
 
-    <view v-else class="card speaker-card" v-for="s in speakers" :key="s.id" @click="rename(s)">
+    <view v-else class="card speaker-card" v-for="s in speakers" :key="s.id"
+          @click="rename(s)" @longpress.prevent="showDeleteMenu(s)">
       <view class="speaker-row">
         <view class="speaker-avatar" :class="'spk-' + (speakers.indexOf(s) % 5)">
           <text class="avatar-letter">{{ s.name.charAt(0) }}</text>
@@ -25,6 +26,30 @@
         <text class="ti ti-pencil edit-icon"></text>
       </view>
     </view>
+    </view>
+
+    <!-- 删除菜单 -->
+    <view v-if="menuVisible" class="modal-overlay" @click.self="menuVisible = false">
+      <view class="modal-sheet">
+        <text class="modal-title">{{ menuSpeaker?.name }}</text>
+        <view class="menu-item" @click="doDelete(false)">
+          <text class="ti ti-trash menu-item-icon"></text>
+          <view class="menu-item-content">
+            <text class="menu-item-text">删除声纹档案</text>
+            <text class="menu-item-desc">录音中的标注保留不变</text>
+          </view>
+        </view>
+        <view class="menu-item" @click="doDelete(true)">
+          <text class="ti ti-trash menu-item-icon" style="color:#FF3B30"></text>
+          <view class="menu-item-content">
+            <text class="menu-item-text" style="color:#FF3B30">删除并重置标注</text>
+            <text class="menu-item-desc">录音中的标注恢复为"未知"</text>
+          </view>
+        </view>
+        <view style="margin-top: 24rpx">
+          <button class="btn-outline btn-block" @click="menuVisible = false">取消</button>
+        </view>
+      </view>
     </view>
   </view>
 </template>
@@ -62,6 +87,26 @@ function rename(spk) {
       }
     },
   })
+}
+
+const menuVisible = ref(false)
+const menuSpeaker = ref(null)
+
+function showDeleteMenu(spk) {
+  menuSpeaker.value = spk
+  menuVisible.value = true
+}
+
+async function doDelete(revert) {
+  const spk = menuSpeaker.value
+  menuVisible.value = false
+  try {
+    await speakerApi.delete(spk.id, revert)
+    speakers.value = speakers.value.filter(s => s.id !== spk.id)
+    uni.showToast({ title: revert ? '已删除并重置标注' : '已删除', icon: 'success' })
+  } catch (e) {
+    uni.showToast({ title: '删除失败', icon: 'none' })
+  }
 }
 
 onMounted(load)
@@ -106,4 +151,23 @@ onShow(load)
 .speaker-name { font-size: $font-base; font-weight: 600; display: block; }
 .speaker-meta { font-size: $font-xs; color: $color-text-tertiary; }
 .edit-icon { font-size: 32rpx; color: $color-text-disabled; }
+
+/* ── Modal Sheet ── */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: 999;
+  display: flex; align-items: flex-end; justify-content: center;
+}
+.modal-sheet {
+  width: 100%; background: $color-bg-card; border-radius: $radius-xl $radius-xl 0 0;
+  padding: $spacing-xl $spacing-lg calc(#{$spacing-xl} + env(safe-area-inset-bottom));
+}
+.modal-title { font-size: $font-lg; font-weight: 700; display: block; margin-bottom: $spacing-lg; }
+.menu-item {
+  display: flex; align-items: center; gap: $spacing-lg; padding: 24rpx 0;
+  border-bottom: 1rpx solid $color-border;
+}
+.menu-item-icon { font-size: 36rpx; color: $color-text-secondary; flex-shrink: 0; }
+.menu-item-content { flex: 1; }
+.menu-item-text { font-size: $font-base; display: block; }
+.menu-item-desc { font-size: $font-xs; color: $color-text-tertiary; display: block; margin-top: 4rpx; }
 </style>

@@ -476,6 +476,29 @@ async def rename_speaker(req: RenameRequest):
     return {"updated_segments": count, "new_name": req.new_name}
 
 
+@app.post("/api/speakers/{speaker_id}/delete")
+async def delete_speaker(speaker_id: str, revert: bool = False):
+    """删除说话人。
+
+    - 默认：仅删除声纹档案（以后不再匹配到此人，已有录音标注保留）
+    - revert=true：同时把录音中此人的标注恢复为"未知"
+    """
+    assert _pipeline is not None
+    assert _store is not None
+
+    spk = _pipeline.speaker_db.get_speaker(speaker_id)
+    if not spk:
+        return JSONResponse({"error": "说话人不存在"}, status_code=404)
+
+    spk_name = spk.name
+    _pipeline.speaker_db.delete_speaker(speaker_id)
+
+    if revert:
+        _store.revert_speaker_name(spk_name)
+
+    return {"deleted": True, "name": spk_name, "reverted": revert}
+
+
 @app.get("/api/speakers")
 async def list_speakers():
     assert _pipeline is not None
