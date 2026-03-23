@@ -50,8 +50,8 @@
 
         <!-- 关联录音 -->
         <view v-if="panelRecordings.length" class="recordings-section">
-          <text class="section-label">出现的录音</text>
-          <view class="rec-link" v-for="r in panelRecordings" :key="r.id" @click="goRecording(r.id, panelSpeaker?.name)">
+          <text class="section-label">出现的录音{{ panelRecordings.length > 5 ? `（最近 5 条，共 ${panelRecordings.length} 条）` : '' }}</text>
+          <view class="rec-link" v-for="r in panelRecordings.slice(0, 5)" :key="r.id" @click="goRecording(r.id, panelSpeaker?.name)">
             <text class="ti ti-microphone rec-link-icon"></text>
             <text class="rec-link-text">{{ r.title || r.filename }}</text>
             <text class="ti ti-chevron-right rec-link-arrow"></text>
