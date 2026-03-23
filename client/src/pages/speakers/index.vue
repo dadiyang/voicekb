@@ -63,11 +63,10 @@
           <button class="btn-outline btn-block" @click="panelVisible = false">关闭</button>
         </view>
 
-        <!-- 删除（弱化处理） -->
-        <view class="delete-zone">
-          <text class="delete-link" @click="doDelete(false)">删除声纹档案</text>
-          <text class="delete-sep">·</text>
-          <text class="delete-link danger" @click="doDelete(true)">删除并重置标注</text>
+        <!-- 删除 -->
+        <view class="delete-zone" @click="showDeleteConfirm">
+          <text class="ti ti-trash delete-icon"></text>
+          <text class="delete-text">删除此说话人</text>
         </view>
       </view>
     </view>
@@ -129,25 +128,35 @@ async function doRename() {
   }
 }
 
-async function doDelete(revert) {
+function showDeleteConfirm() {
   const spk = panelSpeaker.value
-  const msg = revert ? '删除并将录音中的标注恢复为"未知"？' : '删除声纹档案？'
-  uni.showModal({
-    title: `确认删除「${spk.name}」`,
-    content: msg,
-    cancelText: '取消',
-    confirmText: '删除',
-    success: async (r) => {
-      if (r.confirm) {
-        try {
-          await speakerApi.delete(spk.id, revert)
-          speakers.value = speakers.value.filter(s => s.id !== spk.id)
-          panelVisible.value = false
-          uni.showToast({ title: '已删除', icon: 'success' })
-        } catch (e) {
-          uni.showToast({ title: '删除失败', icon: 'none' })
-        }
-      }
+  uni.showActionSheet({
+    itemList: [
+      '仅删除声纹（录音中已有的标注保留）',
+      '删除声纹并清除所有标注',
+    ],
+    success: (res) => {
+      const revert = res.tapIndex === 1
+      uni.showModal({
+        title: `确认删除「${spk.name}」`,
+        content: revert
+          ? '删除后，录音中所有标注为此人的内容将恢复为"未知"。'
+          : '删除后，系统不再自动识别此人，但录音中已有的标注不受影响。',
+        cancelText: '取消',
+        confirmText: '确认删除',
+        success: async (r) => {
+          if (r.confirm) {
+            try {
+              await speakerApi.delete(spk.id, revert)
+              speakers.value = speakers.value.filter(s => s.id !== spk.id)
+              panelVisible.value = false
+              uni.showToast({ title: '已删除', icon: 'success' })
+            } catch (e) {
+              uni.showToast({ title: '删除失败', icon: 'none' })
+            }
+          }
+        },
+      })
     },
   })
 }
@@ -239,12 +248,11 @@ onShow(load)
 .rec-link-text { flex: 1; font-size: $font-sm; color: $color-text-primary; }
 .rec-link-arrow { font-size: 24rpx; color: $color-text-disabled; }
 
-/* ── Delete Zone（弱化处理）── */
+/* ── Delete ── */
 .delete-zone {
-  display: flex; justify-content: center; align-items: center; gap: $spacing-md;
+  display: flex; justify-content: center; align-items: center; gap: 8rpx;
   padding: $spacing-lg 0 0;
 }
-.delete-link { font-size: $font-xs; color: $color-text-disabled; }
-.delete-link.danger { color: #FF3B30; }
-.delete-sep { color: $color-text-disabled; font-size: $font-xs; }
+.delete-icon { font-size: 28rpx; color: $color-text-disabled; }
+.delete-text { font-size: $font-xs; color: $color-text-disabled; }
 </style>
