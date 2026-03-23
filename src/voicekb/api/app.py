@@ -404,6 +404,23 @@ async def set_recording_prompt(recording_id: str, req: RecordingPromptRequest):
     return {"updated": True}
 
 
+class ReassignSegmentRequest(BaseModel):
+    start_time: float
+    new_speaker_id: str
+
+
+@app.post("/api/recordings/{recording_id}/reassign-segment")
+async def reassign_segment(recording_id: str, req: ReassignSegmentRequest):
+    """纠错：将某个时间点的段落改为另一个说话人（只改标签，不改声纹）。"""
+    assert _store is not None
+    result = _store._conn.execute(
+        "UPDATE segments SET speaker_id = ? WHERE recording_id = ? AND start_time = ?",
+        (req.new_speaker_id, recording_id, req.start_time),
+    )
+    _store._conn.commit()
+    return {"updated": result.rowcount}
+
+
 # ── 摘要 prompt 模板管理 ──────────────────────────────────────────────
 
 class PromptRequest(BaseModel):

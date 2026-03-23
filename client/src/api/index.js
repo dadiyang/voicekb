@@ -44,6 +44,7 @@ export const recordingApi = {
   delete: (id) => api.post(`/api/recordings/${id}/delete`),
   updateCategory: (id, category) => api.post(`/api/recordings/${id}/category`, { category }),
   setPrompt: (id, prompt) => api.post(`/api/recordings/${id}/prompt`, { prompt }),
+  reassignSegment: (id, startTime, newSpeakerId) => api.post(`/api/recordings/${id}/reassign-segment`, { start_time: startTime, new_speaker_id: newSpeakerId }),
 }
 
 // 上传（单独处理，用 uni.uploadFile）

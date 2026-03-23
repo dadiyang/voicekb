@@ -4,7 +4,7 @@
     <view class="header-card">
       <text class="ti ti-users header-icon"></text>
       <text class="header-title">说话人管理</text>
-      <text class="header-desc">点击说话人可标注真实姓名，全局生效</text>
+      <text class="header-desc">点击说话人进行管理</text>
     </view>
 
     <view class="list-section">
@@ -13,8 +13,7 @@
       <text class="empty-sub">上传录音后系统会自动识别说话人</text>
     </view>
 
-    <view v-else class="card speaker-card" v-for="s in speakers" :key="s.id"
-          @click="rename(s)" @longpress.prevent="showDeleteMenu(s)">
+    <view v-else class="card speaker-card" v-for="s in speakers" :key="s.id" @click="openPanel(s)">
       <view class="speaker-row">
         <view class="speaker-avatar" :class="'spk-' + (speakers.indexOf(s) % 5)">
           <text class="avatar-letter">{{ s.name.charAt(0) }}</text>
@@ -23,31 +22,62 @@
           <text class="speaker-name">{{ s.name }}</text>
           <text class="speaker-meta">{{ s.recording_ids.length }} 条录音</text>
         </view>
-        <text class="ti ti-pencil edit-icon"></text>
+        <text class="ti ti-chevron-right arrow-icon"></text>
       </view>
     </view>
     </view>
 
-    <!-- 删除菜单 -->
-    <view v-if="menuVisible" class="modal-overlay" @click.self="menuVisible = false">
+    <!-- 统一操作面板 -->
+    <view v-if="panelVisible" class="modal-overlay" @click.self="panelVisible = false">
       <view class="modal-sheet">
-        <text class="modal-title">{{ menuSpeaker?.name }}</text>
-        <view class="menu-item" @click="doDelete(false)">
-          <text class="ti ti-trash menu-item-icon"></text>
-          <view class="menu-item-content">
-            <text class="menu-item-text">删除声纹档案</text>
-            <text class="menu-item-desc">录音中的标注保留不变</text>
+        <!-- 说话人头部 -->
+        <view class="panel-header">
+          <view class="speaker-avatar large" :class="'spk-' + (speakers.indexOf(panelSpeaker) % 5)">
+            <text class="avatar-letter large">{{ panelSpeaker?.name?.charAt(0) }}</text>
+          </view>
+          <text class="panel-name">{{ panelSpeaker?.name }}</text>
+          <text class="panel-meta">{{ panelSpeaker?.recording_ids?.length || 0 }} 条录音</text>
+        </view>
+
+        <!-- 重命名 -->
+        <view class="rename-section">
+          <view class="rename-row">
+            <input class="rename-input" v-model="renameText" placeholder="给 TA 起个名字"
+                   confirm-type="done" @confirm="doRename" />
+            <button class="btn-primary btn-small" @click="doRename" :disabled="!renameText.trim()">保存</button>
           </view>
         </view>
-        <view class="menu-item" @click="doDelete(true)">
-          <text class="ti ti-trash menu-item-icon" style="color:#FF3B30"></text>
-          <view class="menu-item-content">
-            <text class="menu-item-text" style="color:#FF3B30">删除并重置标注</text>
-            <text class="menu-item-desc">录音中的标注恢复为"未知"</text>
+
+        <!-- 关联录音 -->
+        <view v-if="panelRecordings.length" class="recordings-section">
+          <text class="section-label">出现的录音</text>
+          <view class="rec-link" v-for="r in panelRecordings" :key="r.id" @click="goRecording(r.id, panelSpeaker?.name)">
+            <text class="ti ti-microphone rec-link-icon"></text>
+            <text class="rec-link-text">{{ r.title || r.filename }}</text>
+            <text class="ti ti-chevron-right rec-link-arrow"></text>
           </view>
         </view>
+
+        <!-- 危险操作 -->
+        <view class="danger-section">
+          <view class="menu-item" @click="doDelete(false)">
+            <text class="ti ti-trash menu-item-icon"></text>
+            <view class="menu-item-content">
+              <text class="menu-item-text">删除声纹档案</text>
+              <text class="menu-item-desc">录音中的标注保留不变</text>
+            </view>
+          </view>
+          <view class="menu-item" @click="doDelete(true)">
+            <text class="ti ti-trash menu-item-icon" style="color:#FF3B30"></text>
+            <view class="menu-item-content">
+              <text class="menu-item-text" style="color:#FF3B30">删除并重置标注</text>
+              <text class="menu-item-desc">录音中的标注恢复为"未知"</text>
+            </view>
+          </view>
+        </view>
+
         <view style="margin-top: 24rpx">
-          <button class="btn-outline btn-block" @click="menuVisible = false">取消</button>
+          <button class="btn-outline btn-block" @click="panelVisible = false">取消</button>
         </view>
       </view>
     </view>
@@ -57,9 +87,13 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
-import { speakerApi } from '@/api'
+import { speakerApi, recordingApi } from '@/api'
 
 const speakers = ref([])
+const panelVisible = ref(false)
+const panelSpeaker = ref(null)
+const panelRecordings = ref([])
+const renameText = ref('')
 
 async function load() {
   try {
@@ -69,44 +103,63 @@ async function load() {
   }
 }
 
-function rename(spk) {
-  uni.showModal({
-    title: `标注「${spk.name}」`,
-    editable: true,
-    placeholderText: '输入真实姓名',
-    cancelText: '取消',
-    confirmText: '保存',
-    success: async (res) => {
-      if (res.confirm && res.content?.trim()) {
-        const newName = res.content.trim()
-        await speakerApi.rename(spk.name, newName)
-        // 本地更新，不重新加载（避免滚动位置重置）
-        const found = speakers.value.find(s => s.id === spk.id)
-        if (found) found.name = newName
-        uni.showToast({ title: '已更新', icon: 'success' })
-      }
-    },
-  })
+async function openPanel(spk) {
+  panelSpeaker.value = spk
+  renameText.value = ''
+  panelRecordings.value = []
+  panelVisible.value = true
+
+  // 加载关联录音标题
+  if (spk.recording_ids?.length) {
+    try {
+      const all = await recordingApi.list()
+      panelRecordings.value = all.filter(r => spk.recording_ids.includes(r.id))
+    } catch (e) { /* ignore */ }
+  }
 }
 
-const menuVisible = ref(false)
-const menuSpeaker = ref(null)
+function goRecording(recId, speakerName) {
+  panelVisible.value = false
+  const params = speakerName ? `&speaker=${encodeURIComponent(speakerName)}` : ''
+  uni.navigateTo({ url: `/pages/recordings/detail?id=${recId}${params}` })
+}
 
-function showDeleteMenu(spk) {
-  menuSpeaker.value = spk
-  menuVisible.value = true
+async function doRename() {
+  const newName = renameText.value.trim()
+  if (!newName) return
+  try {
+    await speakerApi.rename(panelSpeaker.value.id, newName)
+    const found = speakers.value.find(s => s.id === panelSpeaker.value.id)
+    if (found) found.name = newName
+    panelSpeaker.value = { ...panelSpeaker.value, name: newName }
+    renameText.value = ''
+    uni.showToast({ title: '已更新', icon: 'success' })
+  } catch (e) {
+    uni.showToast({ title: '更新失败', icon: 'none' })
+  }
 }
 
 async function doDelete(revert) {
-  const spk = menuSpeaker.value
-  menuVisible.value = false
-  try {
-    await speakerApi.delete(spk.id, revert)
-    speakers.value = speakers.value.filter(s => s.id !== spk.id)
-    uni.showToast({ title: revert ? '已删除并重置标注' : '已删除', icon: 'success' })
-  } catch (e) {
-    uni.showToast({ title: '删除失败', icon: 'none' })
-  }
+  const spk = panelSpeaker.value
+  const msg = revert ? '删除并将录音中的标注恢复为"未知"？' : '删除声纹档案？'
+  uni.showModal({
+    title: `确认删除「${spk.name}」`,
+    content: msg,
+    cancelText: '取消',
+    confirmText: '删除',
+    success: async (r) => {
+      if (r.confirm) {
+        try {
+          await speakerApi.delete(spk.id, revert)
+          speakers.value = speakers.value.filter(s => s.id !== spk.id)
+          panelVisible.value = false
+          uni.showToast({ title: '已删除', icon: 'success' })
+        } catch (e) {
+          uni.showToast({ title: '删除失败', icon: 'none' })
+        }
+      }
+    },
+  })
 }
 
 onMounted(load)
@@ -139,8 +192,11 @@ onShow(load)
   width: 80rpx; height: 80rpx; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
+  &.large { width: 100rpx; height: 100rpx; }
 }
-.avatar-letter { font-size: $font-sm; font-weight: 600; color: #fff; }
+.avatar-letter { font-size: $font-sm; font-weight: 600; color: #fff;
+  &.large { font-size: $font-lg; }
+}
 .spk-0 { background: $color-primary; }
 .spk-1 { background: $color-warning; }
 .spk-2 { background: $color-success; }
@@ -150,7 +206,7 @@ onShow(load)
 .speaker-info { flex: 1; }
 .speaker-name { font-size: $font-base; font-weight: 600; display: block; }
 .speaker-meta { font-size: $font-xs; color: $color-text-tertiary; }
-.edit-icon { font-size: 32rpx; color: $color-text-disabled; }
+.arrow-icon { font-size: 28rpx; color: $color-text-disabled; }
 
 /* ── Modal Sheet ── */
 .modal-overlay {
@@ -161,7 +217,34 @@ onShow(load)
   width: 100%; background: $color-bg-card; border-radius: $radius-xl $radius-xl 0 0;
   padding: $spacing-xl $spacing-lg calc(#{$spacing-xl} + env(safe-area-inset-bottom));
 }
-.modal-title { font-size: $font-lg; font-weight: 700; display: block; margin-bottom: $spacing-lg; }
+
+/* ── Panel Header ── */
+.panel-header { text-align: center; margin-bottom: $spacing-xl; }
+.panel-name { font-size: $font-lg; font-weight: 700; display: block; margin-top: $spacing-md; }
+.panel-meta { font-size: $font-xs; color: $color-text-tertiary; display: block; margin-top: 4rpx; }
+
+/* ── Rename ── */
+.rename-section { margin-bottom: $spacing-xl; }
+.section-label { font-size: $font-sm; font-weight: 600; color: $color-text-tertiary; display: block; margin-bottom: $spacing-md; }
+.rename-row { display: flex; gap: $spacing-md; }
+.rename-input {
+  flex: 1; height: 80rpx; padding: 0 $spacing-lg;
+  background: $color-bg-page; border: 2rpx solid $color-border;
+  border-radius: $radius-lg; font-size: 16px; color: $color-text-primary;
+}
+
+/* ── Recordings ── */
+.recordings-section { margin-bottom: $spacing-lg; }
+.rec-link {
+  display: flex; align-items: center; gap: $spacing-md;
+  padding: 20rpx 0; border-bottom: 1rpx solid $color-border; cursor: pointer;
+}
+.rec-link-icon { font-size: 32rpx; color: $color-primary; flex-shrink: 0; }
+.rec-link-text { flex: 1; font-size: $font-sm; color: $color-text-primary; }
+.rec-link-arrow { font-size: 24rpx; color: $color-text-disabled; }
+
+/* ── Danger Zone ── */
+.danger-section { border-top: 1rpx solid $color-border; padding-top: $spacing-md; }
 .menu-item {
   display: flex; align-items: center; gap: $spacing-lg; padding: 24rpx 0;
   border-bottom: 1rpx solid $color-border;

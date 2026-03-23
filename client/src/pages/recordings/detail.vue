@@ -94,7 +94,7 @@
           </view>
           <view class="transcript-bubble">
             <view class="transcript-speaker">
-              <text class="speaker-tag" @click.stop="showRenameModal(g.speaker_id)">{{ g.speaker_id }}</text>
+              <text class="speaker-tag" @click.stop="showRenameModal(g.speaker_id, g.indices[0])">{{ g.speaker_id }}</text>
               <text class="ts">{{ formatTimestamp(g.start) }}</text>
             </view>
             <!-- 根据模式显示原文或润色版 -->
@@ -158,15 +158,29 @@
       </view>
     </view>
 
-    <!-- ==================== 说话人标注 ==================== -->
+    <!-- ==================== 说话人操作面板 ==================== -->
     <view v-if="renameVisible" class="modal-overlay" @click.self="renameVisible = false">
       <view class="modal-sheet">
-        <text class="modal-title">标注说话人</text>
-        <input class="modal-input" v-model="renameInput" placeholder="输入真实姓名"
-               :focus="renameVisible" @confirm="doRename" />
-        <view class="modal-actions">
-          <button class="btn-outline" @click="renameVisible = false">取消</button>
-          <button class="btn-primary" @click="doRename">保存</button>
+        <text class="modal-title">{{ renameSpeakerId }}</text>
+
+        <!-- 改名 -->
+        <view class="rename-row">
+          <input class="modal-input" v-model="renameInput" placeholder="给 TA 起个名字"
+                 :focus="renameVisible" @confirm="doRename" />
+          <button class="btn-primary btn-small" @click="doRename">保存</button>
+        </view>
+
+        <!-- 纠错：这段不是 TA 说的 -->
+        <view v-if="renameSegmentIdx >= 0" class="reassign-section">
+          <text class="section-label">这段不是 {{ renameSpeakerId }} 说的？</text>
+          <view class="reassign-chips">
+            <text v-for="s in otherSpeakers" :key="s"
+                  class="reassign-chip" @click="reassignSegment(s)">改为 {{ s }}</text>
+          </view>
+        </view>
+
+        <view style="margin-top: 24rpx">
+          <button class="btn-outline btn-block" @click="renameVisible = false">取消</button>
         </view>
       </view>
     </view>
@@ -341,6 +355,8 @@ const promptCategoryLabel = computed(() =>
 onLoad((query) => {
   recId = query.id
   seekTime = parseFloat(query.seek || 0)
+  // 从说话人管理页跳转来的，自动筛选
+  if (query.speaker) filterSpeaker.value = decodeURIComponent(query.speaker)
   // #ifdef H5
   statusBarHeight.value = 0
   // #endif
@@ -602,9 +618,16 @@ async function addAndSelectCategory() {
   }
 }
 
-// ── 说话人标注 ──────────────────────────────────────────────────
-function showRenameModal(speakerId) {
+// ── 说话人操作 ──────────────────────────────────────────────────
+let renameSegmentIdx = ref(-1)  // 当前点击的是哪个段落（用于纠错）
+
+const otherSpeakers = computed(() =>
+  (recording.value?.speakers || []).filter(s => s !== renameSpeakerId)
+)
+
+function showRenameModal(speakerId, segmentIdx = -1) {
   renameSpeakerId = speakerId
+  renameSegmentIdx.value = segmentIdx
   renameInput.value = ''
   renameVisible.value = true
 }
@@ -619,6 +642,19 @@ async function doRename() {
     loadRecording()
   } catch (e) {
     uni.showToast({ title: '标注失败', icon: 'none' })
+  }
+}
+
+async function reassignSegment(newSpeakerId) {
+  renameVisible.value = false
+  const seg = recording.value?.segments?.[renameSegmentIdx.value]
+  if (!seg) return
+  try {
+    await recordingApi.reassignSegment(recId, seg.start, newSpeakerId)
+    uni.showToast({ title: `已改为"${newSpeakerId}"`, icon: 'success' })
+    loadRecording()
+  } catch (e) {
+    uni.showToast({ title: '更正失败', icon: 'none' })
   }
 }
 
@@ -899,8 +935,17 @@ function goBack() { uni.navigateBack() }
 .modal-input {
   width: 100%; height: 88rpx; padding: 0 $spacing-lg;
   background: $color-bg-hover; border: 2rpx solid transparent;
-  border-radius: $radius-lg; font-size: $font-base; color: $color-text-primary;
-  margin-bottom: $spacing-lg;
+  border-radius: $radius-lg; font-size: 16px; color: $color-text-primary;
+  margin-bottom: 0; flex: 1;
+}
+.rename-row { display: flex; gap: $spacing-md; margin-bottom: $spacing-lg; }
+.section-label { font-size: $font-sm; font-weight: 600; color: $color-text-tertiary; display: block; margin-bottom: $spacing-md; }
+.reassign-section { margin-bottom: $spacing-lg; }
+.reassign-chips { display: flex; flex-wrap: wrap; gap: $spacing-sm; }
+.reassign-chip {
+  display: inline-block; padding: 12rpx 24rpx; border-radius: $radius-full;
+  font-size: $font-sm; background: $color-bg-page; color: $color-primary;
+  border: 2rpx solid $color-primary;
 }
 .modal-actions {
   display: flex; gap: $spacing-lg;
