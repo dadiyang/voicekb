@@ -159,7 +159,7 @@ async def upload_audio(file: UploadFile = File(...)):
     from voicekb.models import Recording
     rec = Recording(
         id=recording_id,
-        filename=file.filename or "unknown.wav",
+        filename=upload_path.name,  # hash 文件名，不存原始文件名
         source="upload",
         status="processing",
         created_at=datetime.now(),
