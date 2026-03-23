@@ -2,8 +2,7 @@
 
 import asyncio
 import logging
-import shutil
-import uuid
+import hashlib
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
@@ -143,14 +142,18 @@ async def upload_audio(file: UploadFile = File(...)):
     assert _store is not None
     assert _pipeline is not None
 
-    recording_id = f"rec_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
+    # 读取文件内容并计算 MD5（用于文件命名，脱敏+去重）
+    content = await file.read()
+    file_hash = hashlib.md5(content).hexdigest()
+    suffix = Path(file.filename or "audio.wav").suffix
+    recording_id = f"rec_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{file_hash[:8]}"
 
-    # 保存文件
-    upload_path = settings.upload_dir / f"{recording_id}_{file.filename}"
+    # 保存文件（recording_id + hash，不含原始文件名）
+    upload_path = settings.upload_dir / f"{recording_id}_{file_hash[:8]}{suffix}"
     upload_path.parent.mkdir(parents=True, exist_ok=True)
 
     with open(upload_path, "wb") as f:
-        shutil.copyfileobj(file.file, f)
+        f.write(content)
 
     # 创建 pending 记录
     from voicekb.models import Recording
