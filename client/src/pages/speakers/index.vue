@@ -65,7 +65,6 @@
 
         <!-- 删除 -->
         <view class="delete-zone" @click="showDeleteConfirm">
-          <text class="ti ti-trash delete-icon"></text>
           <text class="delete-text">删除此说话人</text>
         </view>
       </view>
@@ -250,9 +249,7 @@ onShow(load)
 
 /* ── Delete ── */
 .delete-zone {
-  display: flex; justify-content: center; align-items: center; gap: 8rpx;
-  padding: $spacing-lg 0 0;
+  display: flex; justify-content: center; padding: $spacing-xl 0 0;
 }
-.delete-icon { font-size: 28rpx; color: $color-text-disabled; }
-.delete-text { font-size: $font-xs; color: $color-text-disabled; }
+.delete-text { font-size: $font-xs; color: rgba(255, 59, 48, 0.5); letter-spacing: 1rpx; }
 </style>
