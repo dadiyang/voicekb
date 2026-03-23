@@ -165,9 +165,10 @@
 
         <!-- 改名 -->
         <view class="rename-row">
-          <input class="modal-input" v-model="renameInput" placeholder="给 TA 起个名字"
+          <input class="modal-input" v-model="renameInput"
+                 :placeholder="renameSpeakerId?.startsWith('说话人') ? '给 TA 起个名字' : renameSpeakerId"
                  :focus="renameVisible" @confirm="doRename" />
-          <button class="btn-primary btn-small" @click="doRename">保存</button>
+          <view class="rename-btn" :class="{disabled: !renameInput.trim()}" @click="doRename">保存</view>
         </view>
 
         <!-- 纠错：这段不是 TA 说的 -->
@@ -939,6 +940,12 @@ function goBack() { uni.navigateBack() }
   margin-bottom: 0; flex: 1;
 }
 .rename-row { display: flex; gap: $spacing-md; margin-bottom: $spacing-lg; }
+.rename-btn {
+  height: 88rpx; line-height: 88rpx; padding: 0 32rpx;
+  background: $color-primary; color: #fff; font-size: $font-sm; font-weight: 600;
+  border-radius: $radius-lg; white-space: nowrap;
+  &.disabled { opacity: 0.4; }
+}
 .section-label { font-size: $font-sm; font-weight: 600; color: $color-text-tertiary; display: block; margin-bottom: $spacing-md; }
 .reassign-section { margin-bottom: $spacing-lg; }
 .reassign-chips { display: flex; flex-wrap: wrap; gap: $spacing-sm; }

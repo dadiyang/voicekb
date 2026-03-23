@@ -39,18 +39,19 @@
           <text class="panel-meta">{{ panelSpeaker?.recording_ids?.length || 0 }} 条录音</text>
         </view>
 
-        <!-- 重命名 -->
+        <!-- 修改名字 -->
         <view class="rename-section">
           <view class="rename-row">
-            <input class="rename-input" v-model="renameText" placeholder="给 TA 起个名字"
+            <input class="rename-input" v-model="renameText"
+                   :placeholder="panelSpeaker?.name?.startsWith('说话人') ? '给 TA 起个名字' : panelSpeaker?.name"
                    confirm-type="done" @confirm="doRename" />
-            <button class="btn-primary btn-small" @click="doRename" :disabled="!renameText.trim()">保存</button>
+            <view class="rename-btn" :class="{disabled: !renameText.trim()}" @click="doRename">保存</view>
           </view>
         </view>
 
         <!-- 关联录音 -->
         <view v-if="panelRecordings.length" class="recordings-section">
-          <text class="section-label">出现的录音{{ panelRecordings.length > 5 ? `（最近 5 条，共 ${panelRecordings.length} 条）` : '' }}</text>
+          <text class="section-label">出现的录音{{ panelRecordings.length > 5 ? `（共 ${panelRecordings.length} 条）` : '' }}</text>
           <view class="rec-link" v-for="r in panelRecordings.slice(0, 5)" :key="r.id" @click="goRecording(r.id, panelSpeaker?.name)">
             <text class="ti ti-microphone rec-link-icon"></text>
             <text class="rec-link-text">{{ r.title || r.filename }}</text>
@@ -58,26 +59,15 @@
           </view>
         </view>
 
-        <!-- 危险操作 -->
-        <view class="danger-section">
-          <view class="menu-item" @click="doDelete(false)">
-            <text class="ti ti-trash menu-item-icon"></text>
-            <view class="menu-item-content">
-              <text class="menu-item-text">删除声纹档案</text>
-              <text class="menu-item-desc">录音中的标注保留不变</text>
-            </view>
-          </view>
-          <view class="menu-item" @click="doDelete(true)">
-            <text class="ti ti-trash menu-item-icon" style="color:#FF3B30"></text>
-            <view class="menu-item-content">
-              <text class="menu-item-text" style="color:#FF3B30">删除并重置标注</text>
-              <text class="menu-item-desc">录音中的标注恢复为"未知"</text>
-            </view>
-          </view>
+        <view style="margin-top: 24rpx">
+          <button class="btn-outline btn-block" @click="panelVisible = false">关闭</button>
         </view>
 
-        <view style="margin-top: 24rpx">
-          <button class="btn-outline btn-block" @click="panelVisible = false">取消</button>
+        <!-- 删除（弱化处理） -->
+        <view class="delete-zone">
+          <text class="delete-link" @click="doDelete(false)">删除声纹档案</text>
+          <text class="delete-sep">·</text>
+          <text class="delete-link danger" @click="doDelete(true)">删除并重置标注</text>
         </view>
       </view>
     </view>
@@ -232,6 +222,12 @@ onShow(load)
   background: $color-bg-page; border: 2rpx solid $color-border;
   border-radius: $radius-lg; font-size: 16px; color: $color-text-primary;
 }
+.rename-btn {
+  height: 80rpx; line-height: 80rpx; padding: 0 32rpx;
+  background: $color-primary; color: #fff; font-size: $font-sm; font-weight: 600;
+  border-radius: $radius-lg; white-space: nowrap;
+  &.disabled { opacity: 0.4; }
+}
 
 /* ── Recordings ── */
 .recordings-section { margin-bottom: $spacing-lg; }
@@ -243,14 +239,12 @@ onShow(load)
 .rec-link-text { flex: 1; font-size: $font-sm; color: $color-text-primary; }
 .rec-link-arrow { font-size: 24rpx; color: $color-text-disabled; }
 
-/* ── Danger Zone ── */
-.danger-section { border-top: 1rpx solid $color-border; padding-top: $spacing-md; }
-.menu-item {
-  display: flex; align-items: center; gap: $spacing-lg; padding: 24rpx 0;
-  border-bottom: 1rpx solid $color-border;
+/* ── Delete Zone（弱化处理）── */
+.delete-zone {
+  display: flex; justify-content: center; align-items: center; gap: $spacing-md;
+  padding: $spacing-lg 0 0;
 }
-.menu-item-icon { font-size: 36rpx; color: $color-text-secondary; flex-shrink: 0; }
-.menu-item-content { flex: 1; }
-.menu-item-text { font-size: $font-base; display: block; }
-.menu-item-desc { font-size: $font-xs; color: $color-text-tertiary; display: block; margin-top: 4rpx; }
+.delete-link { font-size: $font-xs; color: $color-text-disabled; }
+.delete-link.danger { color: #FF3B30; }
+.delete-sep { color: $color-text-disabled; font-size: $font-xs; }
 </style>
