@@ -480,16 +480,21 @@ async def rename_speaker(req: RenameRequest):
     assert _store is not None
     assert _pipeline is not None
 
-    # 更新声纹库
+    # 找到说话人（支持按 id 或 name 匹配）
     speaker_db = _pipeline.speaker_db
     speakers = speaker_db.get_all_speakers()
+    old_name = None
     for spk in speakers:
         if spk.name == req.speaker_id or spk.id == req.speaker_id:
+            old_name = spk.name
             speaker_db.rename_speaker(spk.id, req.new_name)
             break
 
-    # 更新所有录音中的说话人名称
-    count = _store.update_speaker_name(req.speaker_id, req.new_name)
+    if not old_name:
+        return JSONResponse({"error": "说话人不存在"}, status_code=404)
+
+    # 用旧名字更新所有录音中的标注
+    count = _store.update_speaker_name(old_name, req.new_name)
     return {"updated_segments": count, "new_name": req.new_name}
 
 
