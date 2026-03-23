@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import FastAPI, File, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, File, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -36,6 +36,12 @@ _progress: dict[str, dict] = {}
 _ws_clients: dict[str, set[WebSocket]] = {}
 
 
+def _ensure_ready():
+    """检查核心服务是否已初始化，未就绪时抛出 503。"""
+    if _store is None or _pipeline is None:
+        raise HTTPException(status_code=503, detail="服务正在启动，请稍后重试")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用生命周期管理。"""
@@ -57,6 +63,12 @@ async def lifespan(app: FastAPI):
     yield
 
     logger.info("VoiceKB 关闭中...")
+    if _store:
+        _store.close()
+    if _search:
+        _search._conn.close()
+    if _pipeline and _pipeline.speaker_db:
+        _pipeline.speaker_db.close()
 
 
 app = FastAPI(
@@ -139,8 +151,7 @@ async def get_audio(recording_id: str):
 @app.post("/api/upload")
 async def upload_audio(file: UploadFile = File(...)):
     """上传音频文件并启动后台处理。"""
-    assert _store is not None
-    assert _pipeline is not None
+    _ensure_ready()
 
     # 读取文件内容并计算 MD5（用于文件命名，脱敏+去重）
     content = await file.read()
@@ -148,8 +159,8 @@ async def upload_audio(file: UploadFile = File(...)):
     suffix = Path(file.filename or "audio.wav").suffix
     recording_id = f"rec_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{file_hash[:8]}"
 
-    # 保存文件（recording_id + hash，不含原始文件名）
-    upload_path = settings.upload_dir / f"{recording_id}_{file_hash[:8]}{suffix}"
+    # 保存文件（recording_id 已包含 hash 前缀，不重复附加）
+    upload_path = settings.upload_dir / f"{recording_id}{suffix}"
     upload_path.parent.mkdir(parents=True, exist_ok=True)
 
     with open(upload_path, "wb") as f:
@@ -175,9 +186,9 @@ async def upload_audio(file: UploadFile = File(...)):
 
 async def _process_recording(recording_id: str, audio_path: Path) -> None:
     """后台处理录音。"""
-    assert _pipeline is not None
-    assert _store is not None
-    assert _rag is not None
+    if _pipeline is None or _store is None or _rag is None:
+        logger.error("_process_recording 调用时服务未就绪: %s", recording_id)
+        return
 
     loop = asyncio.get_event_loop()
 
@@ -240,6 +251,10 @@ async def _process_recording(recording_id: str, audio_path: Path) -> None:
         logger.error("处理录音失败: %s", recording_id, exc_info=True)
         _store.update_recording_status(recording_id, "failed", error="处理失败")
         _progress[recording_id] = {"step": "处理失败", "percent": -1}
+    finally:
+        # 处理完成（成功或失败）后延迟清理进度，避免客户端轮询时已无数据
+        await asyncio.sleep(30)
+        _progress.pop(recording_id, None)
 
 
 async def _broadcast_progress(recording_id: str, step: str, pct: int) -> None:
@@ -256,14 +271,16 @@ async def _broadcast_progress(recording_id: str, step: str, pct: int) -> None:
 
 @app.get("/api/recordings")
 async def list_recordings(limit: int = 50, offset: int = 0):
-    assert _store is not None
+    if _store is None:
+        raise HTTPException(status_code=503, detail="服务正在启动，请稍后重试")
     recordings = _store.list_recordings(limit, offset)
     return [r.model_dump() for r in recordings]
 
 
 @app.get("/api/recordings/{recording_id}")
 async def get_recording(recording_id: str):
-    assert _store is not None
+    if _store is None:
+        raise HTTPException(status_code=503, detail="服务正在启动，请稍后重试")
     rec = _store.get_recording(recording_id)
     if not rec:
         return JSONResponse({"error": "录音不存在"}, status_code=404)
@@ -279,7 +296,7 @@ async def get_recording_status(recording_id: str):
 @app.post("/api/recordings/{recording_id}/reprocess")
 async def reprocess_recording(recording_id: str):
     """重新处理录音（使用最新术语库）。"""
-    assert _store is not None
+    _ensure_ready()
 
     # 找到原始音频文件
     audio_path = None
@@ -301,8 +318,8 @@ async def reprocess_recording(recording_id: str):
 @app.post("/api/recordings/{recording_id}/resummarize")
 async def resummarize_recording(recording_id: str):
     """仅重新生成摘要（不重跑 ASR 和声纹，几秒钟完成）。"""
-    assert _store is not None
-    assert _rag is not None
+    if _store is None or _rag is None:
+        raise HTTPException(status_code=503, detail="服务正在启动，请稍后重试")
 
     rec = _store.get_recording(recording_id)
     if not rec:
@@ -312,7 +329,7 @@ async def resummarize_recording(recording_id: str):
 
     # 如果标题还是原始文件名，重新生成标题和分类
     if rec.title == rec.filename:
-        existing_cats = [c.name if hasattr(c, 'name') else c for c in _store.get_categories()]
+        existing_cats = _store.get_categories()
         title, category = await _rag.classify_and_title(rec, existing_cats)
         rec.title = title
         if category:
@@ -330,7 +347,8 @@ async def resummarize_recording(recording_id: str):
 @app.post("/api/recordings/{recording_id}/delete")
 async def delete_recording(recording_id: str):
     """删除录音及其所有数据。"""
-    assert _store is not None
+    if _store is None:
+        raise HTTPException(status_code=503, detail="服务正在启动，请稍后重试")
     rec = _store.get_recording(recording_id)
     if not rec:
         return JSONResponse({"error": "录音不存在"}, status_code=404)
@@ -367,24 +385,28 @@ async def delete_recording(recording_id: str):
 @app.get("/api/categories")
 async def list_categories():
     """返回所有分类预置。"""
-    assert _store is not None
+    if _store is None:
+        raise HTTPException(status_code=503, detail="服务正在启动，请稍后重试")
     return _store.get_category_presets()
 
 @app.post("/api/categories")
 async def add_category(req: CategoryRequest):
-    assert _store is not None
+    if _store is None:
+        raise HTTPException(status_code=503, detail="服务正在启动，请稍后重试")
     _store.add_category_preset(req.category)
     return {"added": req.category}
 
 @app.post("/api/categories/{preset_id}/delete")
 async def delete_category_preset(preset_id: int):
-    assert _store is not None
+    if _store is None:
+        raise HTTPException(status_code=503, detail="服务正在启动，请稍后重试")
     _store.delete_category_preset(preset_id)
     return {"deleted": True}
 
 @app.post("/api/recordings/{recording_id}/category")
 async def update_category(recording_id: str, req: CategoryRequest):
-    assert _store is not None
+    if _store is None:
+        raise HTTPException(status_code=503, detail="服务正在启动，请稍后重试")
     _store.update_category(recording_id, req.category)
     return {"updated": True}
 
@@ -395,12 +417,9 @@ class RecordingPromptRequest(BaseModel):
 @app.post("/api/recordings/{recording_id}/prompt")
 async def set_recording_prompt(recording_id: str, req: RecordingPromptRequest):
     """设置录音级自定义 prompt。"""
-    assert _store is not None
-    _store._conn.execute(
-        "UPDATE recordings SET custom_prompt = ? WHERE id = ?",
-        (req.prompt, recording_id),
-    )
-    _store._conn.commit()
+    if _store is None:
+        raise HTTPException(status_code=503, detail="服务正在启动，请稍后重试")
+    _store.update_custom_prompt(recording_id, req.prompt)
     return {"updated": True}
 
 
@@ -412,13 +431,29 @@ class ReassignSegmentRequest(BaseModel):
 @app.post("/api/recordings/{recording_id}/reassign-segment")
 async def reassign_segment(recording_id: str, req: ReassignSegmentRequest):
     """纠错：将某个时间点的段落改为另一个说话人（只改标签，不改声纹）。"""
-    assert _store is not None
+    if _store is None:
+        raise HTTPException(status_code=503, detail="服务正在启动，请稍后重试")
+    # 用容差匹配浮点数，避免 IEEE 754 精度问题导致零行更新
     result = _store._conn.execute(
-        "UPDATE segments SET speaker_id = ? WHERE recording_id = ? AND start_time = ?",
+        "UPDATE segments SET speaker_id = ? WHERE recording_id = ? AND ABS(start_time - ?) < 0.05",
         (req.new_speaker_id, recording_id, req.start_time),
     )
     _store._conn.commit()
-    return {"updated": result.rowcount}
+
+    # 重新计算并同步该录音的 speakers 列表
+    import json as _json_local
+    rows = _store._conn.execute(
+        "SELECT DISTINCT speaker_id FROM segments WHERE recording_id = ?",
+        (recording_id,),
+    ).fetchall()
+    speakers = [r[0] for r in rows if r[0]]
+    _store._conn.execute(
+        "UPDATE recordings SET speakers = ? WHERE id = ?",
+        (_json_local.dumps(speakers, ensure_ascii=False), recording_id),
+    )
+    _store._conn.commit()
+
+    return {"updated": result.rowcount, "speakers": speakers}
 
 
 # ── 摘要 prompt 模板管理 ──────────────────────────────────────────────
@@ -429,7 +464,8 @@ class PromptRequest(BaseModel):
 
 @app.get("/api/summary-prompts")
 async def list_summary_prompts():
-    assert _store is not None
+    if _store is None:
+        raise HTTPException(status_code=503, detail="服务正在启动，请稍后重试")
     return _store.get_all_summary_prompts()
 
 @app.get("/api/summary-prompts/builtin/{category}")
@@ -440,13 +476,15 @@ async def get_builtin_prompt_api(category: str):
 
 @app.post("/api/summary-prompts")
 async def save_summary_prompt(req: PromptRequest):
-    assert _store is not None
+    if _store is None:
+        raise HTTPException(status_code=503, detail="服务正在启动，请稍后重试")
     _store.save_summary_prompt(req.category, req.prompt)
     return {"saved": True}
 
 @app.post("/api/summary-prompts/{prompt_id}/delete")
 async def delete_summary_prompt(prompt_id: int):
-    assert _store is not None
+    if _store is None:
+        raise HTTPException(status_code=503, detail="服务正在启动，请稍后重试")
     _store.delete_summary_prompt(prompt_id)
     return {"deleted": True}
 
@@ -455,30 +493,32 @@ async def delete_summary_prompt(prompt_id: int):
 
 class VocabRequest(BaseModel):
     term: str
-    category: str = "general"
+    category: str = "person"
 
 @app.get("/api/vocabulary")
 async def list_vocabulary():
-    assert _store is not None
+    if _store is None:
+        raise HTTPException(status_code=503, detail="服务正在启动，请稍后重试")
     return _store.get_vocabulary()
 
 @app.post("/api/vocabulary")
 async def add_vocabulary(req: VocabRequest):
-    assert _store is not None
+    if _store is None:
+        raise HTTPException(status_code=503, detail="服务正在启动，请稍后重试")
     _store.add_vocabulary(req.term, req.category)
     return {"added": req.term}
 
 @app.post("/api/vocabulary/{term_id}/delete")
 async def delete_vocabulary(term_id: int):
-    assert _store is not None
+    if _store is None:
+        raise HTTPException(status_code=503, detail="服务正在启动，请稍后重试")
     _store.delete_vocabulary(term_id)
     return {"deleted": True}
 
 
 @app.post("/api/speakers/rename")
 async def rename_speaker(req: RenameRequest):
-    assert _store is not None
-    assert _pipeline is not None
+    _ensure_ready()
 
     # 找到说话人（支持按 id 或 name 匹配）
     speaker_db = _pipeline.speaker_db
@@ -505,8 +545,7 @@ async def delete_speaker(speaker_id: str, revert: bool = False):
     - 默认：仅删除声纹档案（以后不再匹配到此人，已有录音标注保留）
     - revert=true：同时把录音中此人的标注恢复为"未知"
     """
-    assert _pipeline is not None
-    assert _store is not None
+    _ensure_ready()
 
     spk = _pipeline.speaker_db.get_speaker(speaker_id)
     if not spk:
@@ -523,14 +562,16 @@ async def delete_speaker(speaker_id: str, revert: bool = False):
 
 @app.get("/api/speakers")
 async def list_speakers():
-    assert _pipeline is not None
+    if _pipeline is None:
+        raise HTTPException(status_code=503, detail="服务正在启动，请稍后重试")
     speakers = _pipeline.speaker_db.get_all_speakers()
     return [s.model_dump() for s in speakers]
 
 
 @app.get("/api/search")
 async def search(q: str = "", type: str = "hybrid", limit: int = 20):
-    assert _search is not None
+    if _search is None:
+        raise HTTPException(status_code=503, detail="服务正在启动，请稍后重试")
 
     if not q:
         return []
@@ -574,7 +615,8 @@ def _ensure_chat_db():
 
 @app.post("/api/ask")
 async def ask_question(req: AskRequest):
-    assert _rag is not None
+    if _rag is None:
+        raise HTTPException(status_code=503, detail="服务正在启动，请稍后重试")
     from datetime import datetime as _dt
 
     conv_id = req.conversation_id or "default"

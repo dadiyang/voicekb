@@ -510,5 +510,13 @@ class RecordingStore:
         self._conn.execute("DELETE FROM summary_prompts WHERE id = ?", (prompt_id,))
         self._conn.commit()
 
+    def update_custom_prompt(self, recording_id: str, prompt: str) -> None:
+        """设置录音级自定义 prompt。"""
+        self._conn.execute(
+            "UPDATE recordings SET custom_prompt = ? WHERE id = ?",
+            (prompt, recording_id),
+        )
+        self._conn.commit()
+
     def close(self) -> None:
         self._conn.close()

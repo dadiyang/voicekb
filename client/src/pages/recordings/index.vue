@@ -381,7 +381,8 @@ async function doAction(action) {
     loadRecordings()
   } else if (action === 'reprocess') {
     await recordingApi.reprocess(id)
-    watchProgress(id)
+    startProgressPoll(id)
+    loadRecordings()
   } else if (action === 'delete') {
     uni.showModal({
       title: '确认删除',
