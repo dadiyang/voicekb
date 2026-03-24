@@ -18,9 +18,18 @@ class ASREngine:
         # CPU 不支持 float16，自动降级
         if device == "cpu" and compute_type == "float16":
             compute_type = "int8"
-        logger.info("加载 Whisper 模型: %s (device=%s, compute=%s)", model_size, device, compute_type)
-        self._model = WhisperModel(model_size, device=device, compute_type=compute_type)
-        logger.info("Whisper 模型加载完成")
+        self._model_size = model_size
+        self._device = device
+        self._compute_type = compute_type
+        self._model = None  # 懒加载，首次使用时才占 GPU 显存
+
+    def _ensure_model(self):
+        if self._model is None:
+            logger.info("加载 Whisper 模型: %s (device=%s, compute=%s)",
+                        self._model_size, self._device, self._compute_type)
+            self._model = WhisperModel(self._model_size, device=self._device,
+                                       compute_type=self._compute_type)
+            logger.info("Whisper 模型加载完成")
 
     def transcribe(self, audio_path: Path, language: str = "zh",
                    hotwords: list[str] | None = None) -> list[Segment]:
@@ -29,6 +38,7 @@ class ASREngine:
         Args:
             hotwords: 自定义术语列表（人名、专业术语等），提高识别准确率。
         """
+        self._ensure_model()
         logger.info("开始转写: %s", audio_path.name)
 
         # 将术语列表注入 initial_prompt，引导模型使用正确用词
