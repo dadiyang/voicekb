@@ -7,7 +7,7 @@
     <!-- 消息区域（可滚动） -->
     <scroll-view scroll-y class="chat-messages" :scroll-top="scrollTop">
       <view v-for="(msg, i) in messages" :key="i" class="chat-msg" :class="msg.role === 'user' ? 'user' : 'ai'">
-        <!-- Tool 执行步骤（通用渲染，不感知具体 tool） -->
+        <!-- Tool 执行步骤 -->
         <view v-if="msg.toolSteps && msg.toolSteps.length" class="tool-steps">
           <view v-for="(step, si) in msg.toolSteps" :key="si" class="tool-step" :class="step.status">
             <text class="tool-icon">{{ step.status === 'done' ? '✓' : '⚡' }}</text>
@@ -15,24 +15,31 @@
             <text v-if="step.summary" class="tool-summary">{{ step.summary }}</text>
           </view>
         </view>
-        <!-- 思考过程（折叠） -->
-        <view v-if="msg.reasoning" class="reasoning-toggle" @click="msg._showReasoning = !msg._showReasoning">
+        <!-- 思考过程：流式阶段展开+标记，完成后默认折叠 -->
+        <view v-if="msg.reasoning && !msg.content" class="reasoning-live">
+          <text class="reasoning-label">思考中...</text>
+          <text class="reasoning-text">{{ msg.reasoning.slice(-200) }}</text>
+        </view>
+        <view v-if="msg.reasoning && msg.content" class="reasoning-toggle"
+              @click="updateMsg(i, { _showReasoning: !msg._showReasoning })">
           <text style="font-size:22rpx;margin-right:4rpx">{{ msg._showReasoning ? '▼' : '▶' }}</text>
           <text>{{ msg._showReasoning ? '收起思考过程' : '查看思考过程' }}</text>
         </view>
-        <view v-if="msg.reasoning && msg._showReasoning" class="reasoning-box">
+        <view v-if="msg.reasoning && msg.content && msg._showReasoning" class="reasoning-box">
           <rich-text :nodes="formatContent(msg.reasoning)" />
         </view>
         <!-- 回答气泡 -->
         <view v-if="msg.content" class="bubble">
           <rich-text v-if="msg.role === 'assistant'" :nodes="formatContent(msg.content)" />
           <text v-else>{{ msg.content }}</text>
-        </view>
-        <!-- 来源 -->
-        <view v-if="msg.sources && msg.sources.length" class="source-link">
-          <text>来源: </text>
-          <text v-for="src in uniqueSources(msg.sources)" :key="src.recording_id"
-                class="source-ref" @click="openRecording(src.recording_id)">{{ shortName(src) }}</text>
+          <!-- 底部操作栏：来源 + 复制 -->
+          <view v-if="msg.role === 'assistant'" class="bubble-footer">
+            <view v-if="msg.sources && msg.sources.length" class="source-tags">
+              <text v-for="src in uniqueSources(msg.sources)" :key="src.recording_id"
+                    class="source-tag" @click.stop="openRecording(src.recording_id)">📎 {{ shortName(src) }}</text>
+            </view>
+            <text class="copy-btn" @click.stop="copyContent(msg.content)">复制</text>
+          </view>
         </view>
       </view>
       <view v-if="loading" class="chat-msg ai">
@@ -93,8 +100,15 @@ function formatContent(text) { return renderMarkdown(text) }
 
 function uniqueSources(sources) {
   if (!sources) return []
-  const seen = new Set()
-  return sources.filter(s => { if (seen.has(s.recording_id)) return false; seen.add(s.recording_id); return true })
+  // 按 recording_id 去重，优先保留有 title 的
+  const map = new Map()
+  for (const s of sources) {
+    const existing = map.get(s.recording_id)
+    if (!existing || (s.recording_title && !existing.recording_title)) {
+      map.set(s.recording_id, s)
+    }
+  }
+  return [...map.values()]
 }
 
 function shortName(src) {
@@ -149,6 +163,18 @@ function updateLastMsg(patch) {
   const idx = messages.value.length - 1
   messages.value[idx] = { ...messages.value[idx], ...patch }
 }
+function updateMsg(idx, patch) {
+  messages.value[idx] = { ...messages.value[idx], ...patch }
+}
+// 复制内容（兼容 H5 和小程序）
+function copyContent(text) {
+  // 去掉 markdown 标记，取纯文本
+  const plain = text.replace(/\*\*/g, '').replace(/#{1,6}\s/g, '').replace(/\n{3,}/g, '\n\n').trim()
+  uni.setClipboardData({
+    data: plain,
+    success: () => uni.showToast({ title: '已复制', icon: 'success', duration: 1500 }),
+  })
+}
 
 async function sendMessage() {
   const q = inputText.value.trim()
@@ -201,7 +227,9 @@ async function sendMessage() {
             if (eventType === 'request_id') {
               currentRequestId = parsed
             } else if (eventType === 'tool_start') {
-              toolSteps.push({ name: parsed.name, status: 'running', summary: '', id: parsed.tool_call_id })
+              // 显示搜索词让用户看到 agent 在搜什么
+              const argsSummary = parsed.args?.query ? `"${parsed.args.query}"` : ''
+              toolSteps.push({ name: parsed.name, status: 'running', summary: argsSummary, id: parsed.tool_call_id })
               updateLastMsg({ toolSteps: [...toolSteps] })
               scrollToBottom()
             } else if (eventType === 'tool_end') {
@@ -381,6 +409,10 @@ onShow(() => { if (initialized) scrollToBottom(true) })
   display: inline-block; max-width: 82%;
   padding: 20rpx 28rpx; border-radius: $radius-xl;
   font-size: $font-base; line-height: 1.6; text-align: left;
+  overflow-wrap: break-word; word-break: break-word;
+  /* rich-text 渲染的列表不溢出 */
+  :deep(ul), :deep(ol) { padding-left: 1.2em; list-style-position: inside; }
+  :deep(li) { word-break: break-word; }
 }
 .chat-msg.user .bubble {
   background: $color-primary-gradient; color: #fff;
@@ -405,7 +437,21 @@ onShow(() => { if (initialized) scrollToBottom(true) })
 .tool-name { font-weight: 500; }
 .tool-summary { color: $color-text-tertiary; margin-left: 4rpx; }
 
-/* 思考过程 */
+/* 思考中（流式阶段，content 还没到） */
+.reasoning-live {
+  background: #f5f5f7; border-radius: $radius-lg; padding: 14rpx 18rpx;
+  margin-bottom: 8rpx; max-height: 200rpx; overflow: hidden;
+}
+.reasoning-label {
+  font-size: 22rpx; color: $color-primary; font-weight: 500;
+  display: block; margin-bottom: 4rpx;
+}
+.reasoning-text {
+  font-size: 22rpx; color: $color-text-tertiary; line-height: 1.5;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+
+/* 思考过程（折叠，content 已到） */
 .reasoning-toggle {
   display: inline-flex; align-items: center;
   font-size: 22rpx; color: $color-text-tertiary;
@@ -417,9 +463,23 @@ onShow(() => { if (initialized) scrollToBottom(true) })
   font-size: 24rpx; line-height: 1.7; color: $color-text-secondary;
 }
 
-/* 来源 */
-.source-link { font-size: 24rpx; color: $color-primary; margin-top: 6rpx; padding-left: 4rpx; display: flex; flex-wrap: wrap; align-items: center; }
-.source-ref { color: $color-primary; margin-right: 12rpx; text-decoration: underline; }
+/* 气泡底部操作栏 */
+.bubble-footer {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-top: 16rpx; padding-top: 12rpx;
+  border-top: 1rpx solid rgba(0,0,0,0.06);
+}
+.source-tags { display: flex; flex-wrap: wrap; gap: 8rpx; flex: 1; }
+.source-tag {
+  display: inline-flex; align-items: center;
+  font-size: 22rpx; color: $color-text-tertiary;
+  background: $color-bg-hover; padding: 4rpx 14rpx;
+  border-radius: $radius-full; white-space: nowrap;
+}
+.copy-btn {
+  font-size: 22rpx; color: $color-text-disabled; flex-shrink: 0;
+  padding: 4rpx 12rpx;
+}
 
 .typing-indicator { display: inline-flex; gap: 8rpx; padding: 8rpx 0; align-items: center; }
 .typing-dot {

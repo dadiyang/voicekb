@@ -27,18 +27,17 @@ logger = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = """你是 VoiceKB 智能助手，帮助用户理解和检索他们的录音内容。
 
-你的能力：
-1. 搜索录音内容（谁说了什么、讨论了哪些话题）
-2. 日常闲聊和打招呼
-3. 解释录音摘要和说话人信息
+搜索策略：
+- 搜索词用空格分隔的关键词，不要用自然语言句子。提取用户问题中最核心的人名、主题词、动作词
+- 首次搜索优先用最核心的1-3个词，搜不到再扩展
+- 如果上下文已有答案，不需要重复搜索
+- 最多重试2次，每次换不同角度的关键词
 
-行为规则：
-- 需要查找录音内容时，使用 search_recordings 工具搜索
-- 多轮对话时，将上下文信息融入搜索词（如用户说"具体是哪三个"，搜索时带上之前的主题）
-- 引用具体的说话人名字和内容，不要编造录音中没有的信息
-- 如果搜索无结果，诚实说明，建议换关键词
-- 用简洁清晰的中文回答
-- 思考过程也必须使用中文"""
+回答规则：
+- 引用具体说话人名字和原话，不编造
+- 搜索无结果时诚实说明
+- 简洁清晰的中文
+- 思考过程也用中文"""
 
 
 @dataclass
@@ -71,7 +70,7 @@ def create_agent(settings: Settings, search: SearchEngine | None = None) -> Agen
 
     @agent.tool_plain
     def search_recordings(query: str) -> str:
-        """搜索录音内容。输入关键词或语义查询，返回匹配的录音片段。多轮对话时，将上下文信息融入查询词中。"""
+        """搜索录音库。query 应为2-5个关键词（如"陈总 赵工 建议"），不要用完整句子。支持人名、话题、关键词搜索。"""
         results = search.hybrid_search(query, limit=5)
         last_search_sources.clear()
         last_search_sources.extend(r.model_dump() for r in results[:5])
@@ -133,10 +132,13 @@ async def stream_agent_response(
         full_reasoning = ""
         full_content = ""
 
+        from pydantic_ai.usage import UsageLimits
+
         async with agent.iter(
             question,
             model_settings=model_settings,
             message_history=message_history or None,
+            usage_limits=UsageLimits(request_limit=20),  # 最多 10 轮 tool call
         ) as run:
             async for node in run:
                 if isinstance(node, CallToolsNode) and hasattr(node, "model_response"):

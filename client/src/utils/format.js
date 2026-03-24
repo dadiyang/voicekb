@@ -83,7 +83,7 @@ export function renderMarkdown(text) {
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/### (.+)/g, '<h4>$1</h4>')
     .replace(/## (.+)/g, '<h3>$1</h3>')
-    .replace(/^- (.+)/gm, '<li>$1</li>')
+    .replace(/^[\-\*]\s+(.+)/gm, '<li>$1</li>')
     .replace(/^\d+\.\s+(.+)/gm, '<li>$1</li>')
     .replace(/---/g, '<hr/>')
     .replace(/\n\n/g, '</p><p>')

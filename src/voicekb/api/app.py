@@ -681,6 +681,7 @@ async def ask_question_stream(req: AskRequest):
 
             full_content = ""
             full_reasoning = ""
+            full_sources = []
 
             # 加载多轮对话历史
             db = _ensure_chat_db()
@@ -700,6 +701,8 @@ async def ask_question_stream(req: AskRequest):
                     full_content += _json.loads(evt.data)
                 elif evt.event == "reasoning":
                     full_reasoning += _json.loads(evt.data)
+                elif evt.event == "sources":
+                    full_sources = _json.loads(evt.data)
 
             # 保存对话到 chat db（db 已在上面加载历史时获取）
             db.execute(
@@ -707,8 +710,10 @@ async def ask_question_stream(req: AskRequest):
                 (conv_id, "user", req.question, datetime.now().isoformat()),
             )
             db.execute(
-                "INSERT INTO chat_messages (conversation_id, role, content, created_at) VALUES (?, ?, ?, ?)",
-                (conv_id, "assistant", full_content, datetime.now().isoformat()),
+                "INSERT INTO chat_messages (conversation_id, role, content, sources, created_at) VALUES (?, ?, ?, ?, ?)",
+                (conv_id, "assistant", full_content,
+                 _json.dumps(full_sources, ensure_ascii=False) if full_sources else None,
+                 datetime.now().isoformat()),
             )
             db.commit()
 

@@ -308,8 +308,8 @@ a { color: var(--color-primary); text-decoration: none; }
 .chat-msg.ai .bubble { background: var(--color-bg-card); border: 1px solid var(--color-border); border-bottom-left-radius: var(--radius-sm); box-shadow: var(--shadow-sm); line-height: 1.8; }
 .chat-msg.ai .bubble p, .chat-msg.ai .bubble br+br { margin-top: 8px; }
 .chat-msg.ai .bubble strong, .chat-msg.ai .bubble b { color: var(--color-text-primary); }
-.chat-msg.ai .bubble ul, .chat-msg.ai .bubble ol { padding-left: 18px; margin: 6px 0; }
-.chat-msg.ai .bubble li { margin-bottom: 4px; }
+.chat-msg.ai .bubble ul, .chat-msg.ai .bubble ol { padding-left: 1.2em; margin: 6px 0; list-style-position: inside; }
+.chat-msg.ai .bubble li { margin-bottom: 4px; word-break: break-word; }
 .chat-msg.ai .bubble hr { border: none; border-top: 1px solid var(--color-border); margin: 10px 0; }
 .chat-msg.ai .bubble .source-link { font-size: 12px; color: var(--color-primary); margin-top: 6px; display: block; }
 .chat-input-bar {
