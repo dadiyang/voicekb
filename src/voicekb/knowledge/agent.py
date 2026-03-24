@@ -12,6 +12,7 @@ from pydantic_ai.messages import (
     ModelRequest,
     ModelResponse,
     TextPart,
+    ThinkingPart,
     ToolCallPart,
     ToolReturnPart,
     UserPromptPart,
@@ -132,9 +133,6 @@ async def stream_agent_response(
         full_reasoning = ""
         full_content = ""
 
-        # 累积 TextPart 文本的 buffer，用于跨 part 的 <think> 标签解析
-        text_buffer = ""
-
         async with agent.iter(
             question,
             model_settings=model_settings,
@@ -146,8 +144,15 @@ async def stream_agent_response(
                     if resp is None:
                         continue
                     for part in resp.parts:
-                        if isinstance(part, TextPart) and part.content:
-                            text_buffer += part.content
+                        if isinstance(part, ThinkingPart) and part.content:
+                            # vLLM reasoning-parser 解析出的思考过程
+                            full_reasoning += part.content
+                            yield SSEEvent("reasoning", json.dumps(part.content, ensure_ascii=False))
+
+                        elif isinstance(part, TextPart) and part.content:
+                            # 实际回答内容（reasoning-parser 已分离，无 <think> 标签）
+                            full_content += part.content
+                            yield SSEEvent("content", json.dumps(part.content, ensure_ascii=False))
 
                         elif isinstance(part, ToolCallPart):
                             tool_display = _tool_display_name(part.tool_name)
@@ -157,17 +162,6 @@ async def stream_agent_response(
                                 "args": args,
                                 "tool_call_id": part.tool_call_id,
                             }, ensure_ascii=False))
-
-                    # 每轮 CallToolsNode 结束后，统一解析累积的 text_buffer
-                    if text_buffer:
-                        reasoning_text, content_text = _parse_thinking(text_buffer)
-                        if reasoning_text:
-                            full_reasoning += reasoning_text
-                            yield SSEEvent("reasoning", json.dumps(reasoning_text, ensure_ascii=False))
-                        if content_text:
-                            full_content += content_text
-                            yield SSEEvent("content", json.dumps(content_text, ensure_ascii=False))
-                        text_buffer = ""
 
                 elif isinstance(node, ModelRequestNode) and hasattr(node, "request"):
                     req = node.request
@@ -194,23 +188,6 @@ async def stream_agent_response(
     except Exception as e:
         logger.error("Agent 执行失败", exc_info=True)
         yield SSEEvent("error", json.dumps("服务异常，请重试", ensure_ascii=False))
-
-
-def _parse_thinking(text: str) -> tuple[str, str]:
-    """从文本中分离 <think>...</think> 思考过程和实际内容。
-
-    返回 (reasoning, content)。处理未闭合标签的情况。
-    """
-    import re
-    # 完整的 <think>...</think>
-    match = re.search(r"<think>(.*?)</think>(.*)", text, re.DOTALL)
-    if match:
-        return match.group(1).strip(), match.group(2).strip()
-    # 只有 <think> 没有 </think>（thinking 被截断或整段都是 thinking）
-    if "<think>" in text:
-        return text.replace("<think>", "").strip(), ""
-    # 纯 content
-    return "", text.strip()
 
 
 # ── Tool 展示信息（后端定义，前端不感知） ──────────────────────────
