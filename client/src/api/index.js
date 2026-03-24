@@ -80,7 +80,8 @@ export const speakerApi = {
 
 // 问答
 export const chatApi = {
-  ask: (question, conversationId = 'default') => api.post('/api/ask', { question, conversation_id: conversationId }),
+  ask: (question, conversationId = 'default', deepThink = false) => api.post('/api/ask', { question, conversation_id: conversationId, deep_think: deepThink }),
+  getResult: (requestId) => api.get(`/api/ask/${requestId}`),
   history: (conversationId = 'default') => api.get(`/api/chat/history?conversation_id=${conversationId}`),
   clear: (conversationId = 'default') => api.post(`/api/chat/clear?conversation_id=${conversationId}`),
 }

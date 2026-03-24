@@ -1,26 +1,4 @@
-/* === Tabler Icons Subset (20 icons) === */
-@font-face{font-family:"tabler-icons";font-style:normal;font-weight:400;src:url("../fonts/tabler-icons.woff2") format("woff2")}
-.ti{font-family:"tabler-icons" !important;speak:none;font-style:normal;font-weight:normal;font-variant:normal;text-transform:none;line-height:1;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
-.ti-book:before{content:"\ea39"}
-.ti-chevron-right:before{content:"\ea61"}
-.ti-dots:before{content:"\ea95"}
-.ti-file-text:before{content:"\eaa2"}
-.ti-lock:before{content:"\eae2"}
-.ti-message-circle:before{content:"\eaed"}
-.ti-microphone:before{content:"\eaf0"}
-.ti-pencil:before{content:"\eb04"}
-.ti-player-pause:before{content:"\ed45"}
-.ti-player-play:before{content:"\ed46"}
-.ti-plus:before{content:"\eb0b"}
-.ti-refresh:before{content:"\eb13"}
-.ti-search:before{content:"\eb1c"}
-.ti-send:before{content:"\eb1e"}
-.ti-tag:before{content:"\10096"}
-.ti-trash:before{content:"\eb41"}
-.ti-upload:before{content:"\eb47"}
-.ti-user:before{content:"\eb4d"}
-.ti-users:before{content:"\ebf2"}
-.ti-x:before{content:"\eb55"}
+/* === Tabler Icons — 完整版，通过 index.html <link> 引入 === */
 
 /* ===== Design Tokens — 从 hotel_shop 设计系统继承 ===== */
 :root {

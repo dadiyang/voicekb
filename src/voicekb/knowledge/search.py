@@ -42,7 +42,8 @@ class SearchEngine:
         """关键词搜索（LIKE）。"""
         try:
             rows = self._conn.execute("""
-                SELECT s.*, r.filename as recording_filename
+                SELECT s.*, r.filename as recording_filename,
+                       COALESCE(r.title, '') as recording_title
                 FROM segments s
                 JOIN recordings r ON r.id = s.recording_id
                 WHERE s.text LIKE ?
@@ -54,6 +55,7 @@ class SearchEngine:
                 SearchResult(
                     recording_id=r["recording_id"],
                     recording_filename=r["recording_filename"],
+                    recording_title=r["recording_title"],
                     segment=Segment(
                         start=r["start_time"], end=r["end_time"],
                         text=r["text"], speaker_id=r["speaker_id"],
@@ -79,6 +81,16 @@ class SearchEngine:
             if not results or not results["ids"] or not results["ids"][0]:
                 return []
 
+            # 批量查录音标题
+            rec_ids = {m["recording_id"] for m in results["metadatas"][0]}
+            title_map = {}
+            for rid in rec_ids:
+                row = self._conn.execute(
+                    "SELECT COALESCE(title, '') FROM recordings WHERE id = ?", (rid,)
+                ).fetchone()
+                if row:
+                    title_map[rid] = row[0]
+
             search_results: list[SearchResult] = []
             for doc_id, doc, metadata, distance in zip(
                 results["ids"][0],
@@ -87,9 +99,11 @@ class SearchEngine:
                 results["distances"][0],
             ):
                 score = 1 - distance  # cosine distance → similarity
+                rid = metadata["recording_id"]
                 search_results.append(SearchResult(
-                    recording_id=metadata["recording_id"],
+                    recording_id=rid,
                     recording_filename=metadata.get("recording_filename", ""),
+                    recording_title=title_map.get(rid, ""),
                     segment=Segment(
                         start=metadata.get("start", 0),
                         end=metadata.get("end", 0),

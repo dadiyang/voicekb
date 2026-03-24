@@ -1,21 +1,25 @@
 """FastAPI 应用入口。"""
 
 import asyncio
-import logging
 import hashlib
+import json as _json
+import logging
+import uuid as _uuid
+
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
 
 from fastapi import FastAPI, File, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from haloant_kit.log import configure_logging
 
 from voicekb.config import settings
+from voicekb.knowledge.agent import create_agent, stream_agent_response
 from voicekb.knowledge.llm import create_llm
 from voicekb.knowledge.rag import RAGEngine
 from voicekb.knowledge.search import SearchEngine
@@ -29,6 +33,8 @@ _pipeline: ProcessingPipeline | None = None
 _store: RecordingStore | None = None
 _search: SearchEngine | None = None
 _rag: RAGEngine | None = None
+_llm = None
+_agent = None
 
 # 处理进度追踪: recording_id -> {step, percent}
 _progress: dict[str, dict] = {}
@@ -45,7 +51,7 @@ def _ensure_ready():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用生命周期管理。"""
-    global _pipeline, _store, _search, _rag
+    global _pipeline, _store, _search, _rag, _llm, _agent
 
     configure_logging(service="voicekb", log_dir=settings.data_dir / "logs")
     settings.ensure_dirs()
@@ -56,8 +62,9 @@ async def lifespan(app: FastAPI):
     _store = RecordingStore(settings)
     _search = SearchEngine(settings)
 
-    llm = create_llm(settings)
-    _rag = RAGEngine(_search, llm)
+    _llm = create_llm(settings)
+    _rag = RAGEngine(_search, _llm)
+    _agent = create_agent(settings, search=_search)
 
     logger.info("VoiceKB 启动完成, 监听 %s:%d", settings.host, settings.port)
     yield
@@ -111,6 +118,7 @@ class RenameRequest(BaseModel):
 class AskRequest(BaseModel):
     question: str
     conversation_id: str | None = None
+    deep_think: bool = False
 
 class CategoryRequest(BaseModel):
     category: str
@@ -587,7 +595,7 @@ async def search(q: str = "", type: str = "hybrid", limit: int = 20):
 
 
 # ── 对话历史存储 ──────────────────────────────────────────────────────────
-import json as _json
+
 import sqlite3 as _sqlite3
 
 def _get_chat_db():
@@ -617,7 +625,7 @@ def _ensure_chat_db():
 async def ask_question(req: AskRequest):
     if _rag is None:
         raise HTTPException(status_code=503, detail="服务正在启动，请稍后重试")
-    from datetime import datetime as _dt
+    
 
     conv_id = req.conversation_id or "default"
     db = _ensure_chat_db()
@@ -630,22 +638,106 @@ async def ask_question(req: AskRequest):
     history = [{"role": r[0], "content": r[1]} for r in rows]
 
     # 调用 RAG（传入历史）
-    result = await _rag.answer(req.question, history=history)
+    result = await _rag.answer(req.question, history=history, deep_think=req.deep_think)
 
     # 保存这轮对话
     db.execute(
         "INSERT INTO chat_messages (conversation_id, role, content, created_at) VALUES (?, ?, ?, ?)",
-        (conv_id, "user", req.question, _dt.now().isoformat()),
+        (conv_id, "user", req.question, datetime.now().isoformat()),
     )
     db.execute(
         "INSERT INTO chat_messages (conversation_id, role, content, sources, created_at) VALUES (?, ?, ?, ?, ?)",
         (conv_id, "assistant", result["answer"],
          _json.dumps(result.get("sources", []), ensure_ascii=False),
-         _dt.now().isoformat()),
+         datetime.now().isoformat()),
     )
     db.commit()
 
     result["conversation_id"] = conv_id
+    return result
+
+
+# ── 流式问答 + 断连恢复 ─────────────────────────────────────────────────
+
+# 已完成的流式结果缓存（request_id → result），最多保留 50 条
+_stream_results: dict[str, dict] = {}
+_STREAM_CACHE_MAX = 50
+
+
+@app.post("/api/ask/stream")
+async def ask_question_stream(req: AskRequest):
+    """SSE 流式问答（PydanticAI Agent）。
+    event 类型：request_id / tool_start / tool_end / reasoning / content / done / error
+    """
+    if _agent is None:
+        raise HTTPException(status_code=503, detail="服务正在启动")
+
+    request_id = str(_uuid.uuid4())
+    conv_id = req.conversation_id or "default"
+
+    async def event_generator():
+        try:
+            yield f"event: request_id\ndata: {_json.dumps(request_id)}\n\n"
+
+            full_content = ""
+            full_reasoning = ""
+
+            # 加载多轮对话历史
+            db = _ensure_chat_db()
+            rows = db.execute(
+                "SELECT role, content FROM chat_messages WHERE conversation_id = ? ORDER BY id",
+                (conv_id,),
+            ).fetchall()
+            history = [{"role": r[0], "content": r[1]} for r in rows]
+
+            async for evt in stream_agent_response(
+                _agent, req.question, history=history, deep_think=req.deep_think
+            ):
+                yield f"event: {evt.event}\ndata: {evt.data}\n\n"
+
+                # 累积最终结果
+                if evt.event == "content":
+                    full_content += _json.loads(evt.data)
+                elif evt.event == "reasoning":
+                    full_reasoning += _json.loads(evt.data)
+
+            # 保存对话到 chat db（db 已在上面加载历史时获取）
+            db.execute(
+                "INSERT INTO chat_messages (conversation_id, role, content, created_at) VALUES (?, ?, ?, ?)",
+                (conv_id, "user", req.question, datetime.now().isoformat()),
+            )
+            db.execute(
+                "INSERT INTO chat_messages (conversation_id, role, content, created_at) VALUES (?, ?, ?, ?)",
+                (conv_id, "assistant", full_content, datetime.now().isoformat()),
+            )
+            db.commit()
+
+            # 缓存结果（断连恢复用）
+            result = {"answer": full_content}
+            if full_reasoning:
+                result["reasoning"] = full_reasoning
+            _stream_results[request_id] = result
+            if len(_stream_results) > _STREAM_CACHE_MAX:
+                oldest = next(iter(_stream_results))
+                del _stream_results[oldest]
+
+        except Exception:
+            logger.error("流式问答失败", exc_info=True)
+            yield f"event: error\ndata: {_json.dumps('服务异常，请重试')}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@app.get("/api/ask/{request_id}")
+async def get_stream_result(request_id: str):
+    """断连恢复：根据 request_id 获取已完成的流式结果。"""
+    result = _stream_results.get(request_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="结果不存在或已过期")
     return result
 
 

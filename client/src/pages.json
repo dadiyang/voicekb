@@ -2,7 +2,7 @@
   "pages": [
     {"path": "pages/recordings/index", "style": {"navigationBarTitleText": "VoiceKB"}},
     {"path": "pages/recordings/detail", "style": {"navigationBarTitleText": "录音详情"}},
-    {"path": "pages/chat/index", "style": {"navigationBarTitleText": "AI 问答"}},
+    {"path": "pages/chat/index", "style": {"navigationStyle": "custom"}},
     {"path": "pages/profile/index", "style": {"navigationBarTitleText": "我的"}},
     {"path": "pages/speakers/index", "style": {"navigationBarTitleText": "说话人管理"}},
     {"path": "pages/vocabulary/index", "style": {"navigationBarTitleText": "术语管理"}},

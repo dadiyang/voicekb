@@ -275,28 +275,57 @@ const filterSpeaker = ref('')
 // ── 文本模式切换（流畅版/原文） ──────────────────────────────────
 const textMode = ref('polished')
 
-// ── 合并连续同一说话人发言（含润色版本） ────────────────────────
+// ── 合并连续同一说话人发言，再按 ~120 字拆段落 ─────────────────
 const mergedSegs = computed(() => {
   const segments = recording.value?.segments
   if (!segments?.length) return []
-  const merged = []
+
+  // 第一步：合并同一说话人的连续片段（间隔 <3s）
+  const rawMerged = []
   segments.forEach((seg, idx) => {
-    const last = merged[merged.length - 1]
+    const last = rawMerged[rawMerged.length - 1]
     if (last && last.speaker_id === seg.speaker_id && seg.start - last.end < 3) {
-      last.texts.push(seg.text)
-      if (seg.text_polished) last.polished.push(seg.text_polished)
+      last.items.push({ idx, text: seg.text, polished: seg.text_polished || '', start: seg.start, end: seg.end })
       last.end = seg.end
-      last.indices.push(idx)
     } else {
-      merged.push({
+      rawMerged.push({
         speaker_id: seg.speaker_id, start: seg.start, end: seg.end,
-        texts: [seg.text],
-        polished: seg.text_polished ? [seg.text_polished] : [],
-        indices: [idx],
+        items: [{ idx, text: seg.text, polished: seg.text_polished || '', start: seg.start, end: seg.end }],
       })
     }
   })
-  return merged
+
+  // 第二步：长段落按 ~120 字在原始片段边界处拆分
+  const MAX_CHARS = 120
+  const result = []
+  for (const group of rawMerged) {
+    let curTexts = [], curPolished = [], curIndices = [], curStart = group.items[0].start, curEnd = group.items[0].end, charCount = 0
+
+    for (const item of group.items) {
+      const len = (item.polished || item.text).length
+      // 如果加入后超过限制，且当前段已有内容，先断开
+      if (charCount > 0 && charCount + len > MAX_CHARS) {
+        result.push({
+          speaker_id: group.speaker_id, start: curStart, end: curEnd,
+          texts: curTexts, polished: curPolished.filter(Boolean), indices: curIndices,
+        })
+        curTexts = []; curPolished = []; curIndices = []; curStart = item.start; charCount = 0
+      }
+      curTexts.push(item.text)
+      if (item.polished) curPolished.push(item.polished)
+      curIndices.push(item.idx)
+      curEnd = item.end
+      charCount += len
+    }
+    // 最后一段
+    if (curTexts.length) {
+      result.push({
+        speaker_id: group.speaker_id, start: curStart, end: curEnd,
+        texts: curTexts, polished: curPolished.filter(Boolean), indices: curIndices,
+      })
+    }
+  }
+  return result
 })
 
 // ── 说话人筛选后的对话 ──────────────────────────────────────────

@@ -371,10 +371,15 @@ class RecordingStore:
             logger.error("ChromaDB 索引失败", exc_info=True)
 
     @staticmethod
-    def _merge_segments_to_chunks(recording: Recording) -> list[dict]:
-        """将同一说话人的连续片段合并为 chunk。
+    def _merge_segments_to_chunks(recording: Recording,
+                                  window_sec: float = 45.0,
+                                  overlap_sec: float = 15.0) -> list[dict]:
+        """按时间窗口切分 chunk，用于语义搜索索引。
 
-        语义索引优先用润色版（更干净、embedding 更准），无润色版时回退到原文。
+        - 45 秒窗口、15 秒重叠，保证跨窗口的话题至少在某个 chunk 中完整出现
+        - 每个 chunk 包含窗口内所有说话人的发言，保留对话上下文
+        - 过滤掉文本过短（<20 字）的 chunk
+        - 优先用润色版文本（embedding 更准）
         """
         if not recording.segments:
             return []
@@ -382,28 +387,34 @@ class RecordingStore:
         def _best_text(seg) -> str:
             return seg.text_polished if getattr(seg, 'text_polished', None) else seg.text
 
+        total_duration = recording.segments[-1].end
+        step = window_sec - overlap_sec  # 30 秒步进
         chunks: list[dict] = []
-        current = {
-            "speaker_id": recording.segments[0].speaker_id,
-            "start": recording.segments[0].start,
-            "end": recording.segments[0].end,
-            "text": _best_text(recording.segments[0]),
-        }
 
-        for seg in recording.segments[1:]:
-            if seg.speaker_id == current["speaker_id"]:
-                current["end"] = seg.end
-                current["text"] += " " + _best_text(seg)
-            else:
-                chunks.append(current)
-                current = {
-                    "speaker_id": seg.speaker_id,
-                    "start": seg.start,
-                    "end": seg.end,
-                    "text": _best_text(seg),
-                }
+        window_start = 0.0
+        while window_start < total_duration:
+            window_end = window_start + window_sec
 
-        chunks.append(current)
+            # 收集窗口内的片段
+            window_segs = [
+                seg for seg in recording.segments
+                if seg.start < window_end and seg.end > window_start
+            ]
+
+            if window_segs:
+                speakers = list(dict.fromkeys(seg.speaker_id for seg in window_segs))
+                text = " ".join(_best_text(seg) for seg in window_segs)
+
+                if len(text) >= 20:
+                    chunks.append({
+                        "speaker_id": speakers[0] if len(speakers) == 1 else ", ".join(speakers),
+                        "start": window_segs[0].start,
+                        "end": window_segs[-1].end,
+                        "text": text,
+                    })
+
+            window_start += step
+
         return chunks
 
     # ── 分类管理 ──────────────────────────────────────────────────────

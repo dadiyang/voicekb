@@ -50,6 +50,7 @@ class SearchResult(BaseModel):
 
     recording_id: str
     recording_filename: str
+    recording_title: str = ""
     segment: Segment
     score: float
     context: list[Segment] = []
