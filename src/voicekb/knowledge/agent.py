@@ -60,9 +60,6 @@ def create_agent(settings: Settings, search: SearchEngine | None = None) -> Agen
         ),
     )
 
-    # 闭包变量：最近一次搜索的结构化结果（用于 sources 事件）
-    last_search_sources: list[dict] = []
-
     agent = Agent(
         model,
         system_prompt=SYSTEM_PROMPT,
@@ -72,8 +69,6 @@ def create_agent(settings: Settings, search: SearchEngine | None = None) -> Agen
     def search_recordings(query: str) -> str:
         """搜索录音库。query 应为2-5个关键词（如"陈总 赵工 建议"），不要用完整句子。支持人名、话题、关键词搜索。"""
         results = search.hybrid_search(query, limit=5)
-        last_search_sources.clear()
-        last_search_sources.extend(r.model_dump() for r in results[:5])
         if not results:
             return "未找到相关录音内容。建议换个关键词试试。"
         lines = []
@@ -84,9 +79,6 @@ def create_agent(settings: Settings, search: SearchEngine | None = None) -> Agen
             )
         return "\n\n".join(lines)
 
-    # 暴露 last_search_sources 供 stream_agent_response 使用
-    agent._last_search_sources = last_search_sources  # type: ignore[attr-defined]
-
     return agent
 
 
@@ -95,6 +87,7 @@ async def stream_agent_response(
     question: str,
     history: list[dict] | None = None,
     deep_think: bool = False,
+    search: SearchEngine | None = None,
 ) -> AsyncGenerator[SSEEvent, None]:
     """流式执行 agent，yield SSE 事件。
 
@@ -131,6 +124,7 @@ async def stream_agent_response(
 
         full_reasoning = ""
         full_content = ""
+        pending_queries: dict[str, str] = {}  # tool_call_id → query（请求级，无并发竞态）
 
         from pydantic_ai.usage import UsageLimits
 
@@ -159,6 +153,9 @@ async def stream_agent_response(
                         elif isinstance(part, ToolCallPart):
                             tool_display = _tool_display_name(part.tool_name)
                             args = json.loads(part.args) if isinstance(part.args, str) else part.args
+                            # 记录搜索 query 供 tool_end 时获取 sources
+                            if part.tool_name == "search_recordings" and args.get("query"):
+                                pending_queries[part.tool_call_id] = args["query"]
                             yield SSEEvent("tool_start", json.dumps({
                                 "name": tool_display,
                                 "args": args,
@@ -178,10 +175,13 @@ async def stream_agent_response(
                                     "result_summary": summary,
                                     "tool_call_id": part.tool_call_id,
                                 }, ensure_ascii=False))
-                                # 发送 sources（来自 search_recordings 闭包）
-                                sources = getattr(agent, "_last_search_sources", [])
-                                if sources:
-                                    yield SSEEvent("sources", json.dumps(sources, ensure_ascii=False))
+                                # 从 pending_queries 获取 sources（请求级局部变量，无并发竞态）
+                                if part.tool_name == "search_recordings" and search and part.tool_call_id in pending_queries:
+                                    query = pending_queries.pop(part.tool_call_id)
+                                    results = search.hybrid_search(query, limit=5)
+                                    if results:
+                                        sources = [r.model_dump() for r in results[:5]]
+                                        yield SSEEvent("sources", json.dumps(sources, ensure_ascii=False))
 
         # 完成
         result = {"answer": full_content, "reasoning": full_reasoning}

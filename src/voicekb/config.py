@@ -18,8 +18,8 @@ class Settings(BaseSettings):
     speaker_db_path: Path = Path.home() / ".voicekb" / "speakers.db"
     chroma_dir: Path = Path.home() / ".voicekb" / "chroma"
 
-    # ── ASR（OpenAI Whisper API 兼容，本地 faster-whisper-server 或云端）────
-    asr_base_url: str = "http://localhost:8000/v1"  # 本地 faster-whisper-server
+    # ── ASR（OpenAI Whisper API 兼容，本地 whisper-asr-webservice 或云端）──
+    asr_base_url: str = "http://localhost:8000/v1"  # 本地 whisper Docker 或云端 OpenAI
     asr_model: str = "medium"  # 本地用 medium/large-v3，云端用 whisper-1
     asr_api_key: str = "not-needed"
     asr_language: str = "zh"

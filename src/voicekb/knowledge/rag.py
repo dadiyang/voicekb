@@ -175,17 +175,7 @@ class RAGEngine:
             result["reasoning"] = reasoning
         return result
 
-    async def answer_stream(self, question: str,
-                            history: list[Message] | None = None,
-                            deep_think: bool = False):
-        """流式回答，yield (event_type, data) 元组。"""
-        messages, sources = self._build_context(question, history)
 
-        if sources:
-            yield ("sources", sources)
-
-        async for phase, delta in self._llm.chat_stream(messages, deep_think=deep_think):
-            yield (phase, delta)
 
     # ── 合并调用：标题 + 分类（1 次 LLM） ────────────────────────────────
 

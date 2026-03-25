@@ -43,25 +43,33 @@ class ASREngine:
             logger.info("使用自定义术语: %s", prompt)
 
         # 调用 OpenAI Whisper API 兼容接口
-        with open(audio_path, "rb") as f:
-            files = {"file": (audio_path.name, f, "audio/wav")}
-            data = {
-                "model": self._model,
-                "language": lang,
-                "response_format": "verbose_json",  # 获取时间戳
-            }
-            if prompt:
-                data["prompt"] = prompt
+        try:
+            with open(audio_path, "rb") as f:
+                files = {"file": (audio_path.name, f, "audio/wav")}
+                data = {
+                    "model": self._model,
+                    "language": lang,
+                    "response_format": "verbose_json",
+                }
+                if prompt:
+                    data["prompt"] = prompt
 
-            with httpx.Client(timeout=600.0) as client:
-                resp = client.post(
-                    f"{self._base_url}/audio/transcriptions",
-                    files=files,
-                    data=data,
-                    headers={"Authorization": f"Bearer {self._api_key}"},
-                )
-                resp.raise_for_status()
-                result = resp.json()
+                with httpx.Client(timeout=600.0) as client:
+                    resp = client.post(
+                        f"{self._base_url}/audio/transcriptions",
+                        files=files,
+                        data=data,
+                        headers={"Authorization": f"Bearer {self._api_key}"},
+                    )
+                    resp.raise_for_status()
+                    result = resp.json()
+        except httpx.ConnectError:
+            raise RuntimeError(
+                f"ASR 服务未启动或不可达: {self._base_url}。"
+                f"请检查 whisper 容器是否运行: docker ps | grep whisper"
+            ) from None
+        except httpx.HTTPStatusError as e:
+            raise RuntimeError(f"ASR 服务返回错误 {e.response.status_code}: {e.response.text[:200]}") from None
 
         # 解析响应（OpenAI verbose_json 格式）
         segments = self._parse_response(result)

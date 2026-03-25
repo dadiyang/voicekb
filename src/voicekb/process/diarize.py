@@ -98,7 +98,7 @@ class Diarizer:
                 if result.stdout.strip() == "16000":
                     return audio_path
             except Exception:
-                pass
+                pass  # ffprobe 不可用，走后面的转换逻辑
 
         # 转换为 16kHz wav
         out_path = audio_path.parent / f"{audio_path.stem}_16k.wav"

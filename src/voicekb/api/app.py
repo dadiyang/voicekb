@@ -727,7 +727,7 @@ async def ask_question_stream(req: AskRequest):
             history = [{"role": r[0], "content": r[1]} for r in rows]
 
             async for evt in stream_agent_response(
-                _agent, req.question, history=history, deep_think=req.deep_think
+                _agent, req.question, history=history, deep_think=req.deep_think, search=_search
             ):
                 yield f"event: {evt.event}\ndata: {evt.data}\n\n"
 

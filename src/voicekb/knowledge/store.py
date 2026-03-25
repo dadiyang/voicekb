@@ -21,7 +21,7 @@ class RecordingStore:
 
         self._db_path = settings.db_path
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(str(self._db_path), check_same_thread=False)
+        self._conn = sqlite3.connect(str(self._db_path), check_same_thread=False, timeout=30)
         self._conn.row_factory = sqlite3.Row
         self._init_tables()
 
@@ -94,7 +94,7 @@ class RecordingStore:
                 self._conn.execute(
                     "INSERT INTO category_presets (name, is_builtin) VALUES (?, 1)", (cat,))
             except sqlite3.IntegrityError:
-                pass
+                pass  # 预置分类已存在，跳过
         self._conn.commit()
 
         # FTS5 — 需要单独处理（不能在 executescript 中和其他语句混合）
