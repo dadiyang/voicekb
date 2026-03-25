@@ -399,11 +399,17 @@ async function doAction(action) {
       content: '删除后不可恢复',
       cancelText: '取消',
       confirmText: '删除',
-      success: async (r) => {
+      success(r) {
         if (r.confirm) {
-          await recordingApi.delete(id)
+          // 立即从列表移除（乐观更新）
+          const removed = recordings.value.find(rec => rec.id === id)
+          recordings.value = recordings.value.filter(rec => rec.id !== id)
           uni.showToast({ title: '已删除', icon: 'success' })
-          loadRecordings()
+          // 后台调 API，失败则恢复
+          recordingApi.delete(id).catch(() => {
+            if (removed) recordings.value.unshift(removed)
+            uni.showToast({ title: '删除失败', icon: 'none' })
+          })
         }
       },
     })
