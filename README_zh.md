@@ -28,11 +28,11 @@
 
 | 能力 | 说明 |
 |------|------|
-| **语音识别** | 基于 faster-whisper，中文准确率高，GPU 加速 30 分钟录音 < 5 分钟处理完 |
+| **语音识别** | Whisper ASR，中文准确率高，GPU 加速 30 分钟录音约 1 分钟处理完 |
 | **说话人分离** | 自动区分每个人说了什么，跨录音识别同一人（声纹关联） |
 | **智能摘要** | LLM 自动生成会议纪要，支持按分类自定义总结模板 |
 | **双引擎搜索** | 关键词精确匹配 + 语义向量搜索，快速定位内容 |
-| **AI 问答** | 直接问录音内容，多轮对话，引用原文出处 |
+| **AI Agent 问答** | PydanticAI Agent + tool calling，自动搜索录音，多轮对话，引用来源，深度思考模式 |
 | **双版本转写** | 原始 ASR 输出 + LLM 润色的流畅版，一键切换 |
 
 ## 技术亮点
@@ -40,21 +40,29 @@
 - **声纹跨录音关联** — 不只是单次录音内区分说话人，而是跨所有录音识别同一人。标注一次"张三"，所有录音中张三自动识别
 - **三层 Prompt 体系** — 平台默认 → 分类自定义 → 单条录音专属，总结方式层层可调
 - **总结 + 润色并行** — asyncio.gather 同时执行 LLM 摘要和文本润色，处理时间减半
-- **完全本地部署** — ASR、声纹、向量搜索、LLM 全部本地运行，录音数据不出你的服务器
+- **可插拔 AI 后端** — ASR 和 LLM 统一 OpenAI 兼容 API，改个 URL 就能切换本地/云端，零代码改动
+- **完全本地部署** — ASR、声纹、向量搜索、LLM 可全部本地运行，录音数据不出你的服务器
 
 ## 架构
 
 ```
-┌─────────────────────────────────────────────┐
-│  消费层   uni-app H5 / 小程序 / REST API     │
-├─────────────────────────────────────────────┤
-│  知识层   SQLite FTS5 + ChromaDB + LLM RAG   │
-├─────────────────────────────────────────────┤
-│  处理层   faster-whisper + pyannote.audio + wespeaker│
-├─────────────────────────────────────────────┤
-│  存储层   SQLite + Markdown 双写              │
-└─────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────┐
+│  消费层     uni-app H5 / 小程序 / REST API           │
+├──────────────────────────────────────────────────────┤
+│  知识层     PydanticAI Agent + ChromaDB + FTS5       │
+├──────────────────────────────────────────────────────┤
+│  处理层     ASR (HTTP API) + resemblyzer + 谱聚类    │
+├──────────────────────────────────────────────────────┤
+│  存储层     SQLite + Markdown 双写                   │
+└──────────────┬───────────────────┬───────────────────┘
+               │  OpenAI 兼容 API  │
+    ┌──────────┴──┐     ┌──────────┴──────────┐
+    │  ASR 服务   │     │    LLM 服务          │
+    │ (本地/云端)  │     │   (本地/云端)         │
+    └─────────────┘     └─────────────────────┘
 ```
+
+> VoiceKB 本身**不绑定任何 AI 模型**，所有智能通过标准 HTTP API 调用——改个 URL 即可切换后端。
 
 ## 快速开始
 
@@ -104,13 +112,13 @@ VoiceKB 支持两种部署方式，按你的硬件条件选择：
 
 ```bash
 # .env
-VOICEKB_WHISPER_DEVICE=cuda
+VOICEKB_ASR_BASE_URL=http://localhost:8000/v1
+VOICEKB_ASR_MODEL=medium
 VOICEKB_LLM_BASE_URL=http://localhost:18090/v1
-VOICEKB_LLM_MODEL=Qwen/Qwen3-8B
-VOICEKB_LLM_API_KEY=not-needed
+VOICEKB_LLM_MODEL=Qwen3.5-35B-A3B
 ```
 
-本地 LLM 推荐用 [vLLM](https://github.com/vllm-project/vllm) 或 [Ollama](https://ollama.ai) 部署 Qwen3-8B。
+本地 ASR 推荐 [whisper-asr-webservice](https://github.com/ahmetoner/whisper-asr-webservice)（Docker），本地 LLM 推荐 [llama.cpp](https://github.com/ggml-org/llama.cpp) 或 [Ollama](https://ollama.ai)。
 
 ### 模式 B：无 GPU — CPU + 云端 LLM
 
@@ -118,7 +126,9 @@ ASR 和声纹在 CPU 上运行（较慢但可用），LLM 对接云端 API。
 
 ```bash
 # .env
-VOICEKB_WHISPER_DEVICE=cpu
+VOICEKB_ASR_BASE_URL=https://api.openai.com/v1
+VOICEKB_ASR_MODEL=whisper-1
+VOICEKB_ASR_API_KEY=sk-your-api-key
 VOICEKB_LLM_BASE_URL=https://api.deepseek.com/v1   # 或通义千问、OpenAI 等
 VOICEKB_LLM_MODEL=deepseek-chat
 VOICEKB_LLM_API_KEY=sk-your-api-key
@@ -140,24 +150,25 @@ VOICEKB_LLM_API_KEY=sk-your-api-key
 
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
-| `WHISPER_MODEL` | `small` | Whisper 模型（`small` / `medium` / `large-v3`） |
-| `WHISPER_DEVICE` | `cuda` | 运行设备（`cuda` / `cpu`） |
-| `LLM_BACKEND` | `openai_compatible` | LLM 后端（`openai_compatible` / `none`） |
-| `LLM_BASE_URL` | `http://localhost:8000/v1` | LLM API 地址 |
-| `LLM_MODEL` | `Qwen/Qwen3-8B` | 模型名称 |
-| `LLM_API_KEY` | `not-needed` | API 密钥（本地部署不需要） |
-| `PORT` | `8080` | 服务端口 |
+| `ASR_BASE_URL` | `http://localhost:8000/v1` | Whisper 兼容 API 地址 |
+| `ASR_MODEL` | `medium` | 模型名（`medium` / `large-v3` / `whisper-1`） |
+| `ASR_API_KEY` | `not-needed` | API 密钥（云端 ASR 需要） |
+| `LLM_BASE_URL` | `http://localhost:18090/v1` | LLM API 地址 |
+| `LLM_MODEL` | `Qwen3.5-35B-A3B` | 模型名 |
+| `LLM_API_KEY` | `not-needed` | API 密钥（云端 LLM 需要） |
+| `PORT` | `18089` | 服务端口 |
 
 ## 技术栈
 
 | 层 | 技术 |
 |----|------|
-| 前端 | uni-app (Vue 3) — 同时编译 H5 和微信小程序 |
+| 前端 | uni-app (Vue 3) — H5 + 微信小程序 |
 | 后端 | FastAPI + SQLite + ChromaDB |
-| ASR | faster-whisper (CTranslate2 加速) |
-| 声纹 | pyannote.audio 3.1 (神经网络分割 + wespeaker embedding) |
-| 向量搜索 | ChromaDB + bge-small-zh-v1.5 |
-| LLM | 可插拔 — 本地 Qwen3-8B 或任意 OpenAI 兼容 API |
+| AI Agent | PydanticAI — tool calling、多轮推理 |
+| ASR | 任意 OpenAI Whisper 兼容 API（本地或云端） |
+| 声纹 | resemblyzer (d-vector) + 谱聚类 |
+| 向量搜索 | ChromaDB + bge-base-zh-v1.5 |
+| LLM | 任意 OpenAI Chat 兼容 API（本地或云端） |
 
 ## License
 

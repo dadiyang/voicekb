@@ -58,6 +58,15 @@ async def lifespan(app: FastAPI):
 
     logger.info("VoiceKB 启动中...")
 
+    # 检查外部服务可达性
+    import httpx as _httpx
+    for name, url in [("LLM", settings.llm_base_url), ("ASR", settings.asr_base_url)]:
+        try:
+            _httpx.get(f"{url}/models", timeout=5.0)
+            logger.info("%s 服务可达: %s", name, url)
+        except Exception:
+            logger.warning("%s 服务不可达: %s（功能降级，相关功能将不可用）", name, url)
+
     _pipeline = ProcessingPipeline(settings)
     _store = RecordingStore(settings)
     _search = SearchEngine(settings)

@@ -10,7 +10,7 @@ set -e
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 CLIENT_DIR="$PROJECT_ROOT/client"
-ANDROID_HOME="${ANDROID_HOME:-/home/irons/Android/Sdk}"
+ANDROID_HOME="${ANDROID_HOME:-$HOME/Android/Sdk}"
 JAVA_HOME="${JAVA_HOME:-/tmp/jdk-11.0.2}"
 
 # ====== 颜色输出 ======
@@ -33,8 +33,8 @@ command -v node >/dev/null || err "需要 Node.js"
 # ====== Step 1: uni-app 编译 app 资源 ======
 log "Step 1/4: 编译 uni-app app 资源..."
 cd "$CLIENT_DIR"
-NODE_PATH=/home/irons/hotel_shop/client/node_modules \
-  node /home/irons/hotel_shop/client/node_modules/@dcloudio/vite-plugin-uni/bin/uni.js build -p app 2>&1 | tail -3
+NODE_PATH=$(dirname "$0")/../client/node_modules \
+  node $(dirname "$0")/../client/node_modules/@dcloudio/vite-plugin-uni/bin/uni.js build -p app 2>&1 | tail -3
 
 # pack-cli 硬编码寻找 app-plus 目录
 rm -rf dist/build/app-plus

@@ -4,7 +4,7 @@
   "scripts": {
     "dev": "uni dev",
     "dev:h5": "uni dev --platform h5",
-    "build:h5": "uni build --platform h5",
+    "build:h5": "uni build --platform h5 && ./postbuild.sh",
     "build:mp-weixin": "uni build --platform mp-weixin"
   },
   "dependencies": {

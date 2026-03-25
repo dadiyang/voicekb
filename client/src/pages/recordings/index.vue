@@ -5,7 +5,7 @@
       <view class="brand-row">
         <view>
           <text class="brand-title">VoiceKB</text>
-          <text class="brand-sub">{{ recordings.length }} 条录音 · {{ totalMinutes }} 分钟</text>
+          <text class="brand-sub">{{ loaded ? `${recordings.length} 条录音 · ${totalMinutes} 分钟` : '加载中...' }}</text>
         </view>
         <view class="brand-fab" @click="chooseFile">
           <text class="ti ti-plus brand-fab-icon"></text>

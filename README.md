@@ -30,11 +30,11 @@ Upload a recording and VoiceKB handles the rest automatically:
 
 | Capability | Description |
 |------------|-------------|
-| **Speech Recognition** | Powered by faster-whisper with high Chinese accuracy — GPU processes a 30-minute recording in under 5 minutes |
+| **Speech Recognition** | Whisper ASR with high Chinese accuracy — GPU processes a 30-minute recording in about 1 minute |
 | **Speaker Diarization** | Automatically identifies who said what, and recognizes the same speaker across multiple recordings (voice fingerprint linking) |
 | **Smart Summarization** | LLM generates meeting minutes automatically; supports per-category custom summary templates |
 | **Dual-engine Search** | Exact keyword matching + semantic vector search to locate content quickly |
-| **AI Q&A** | Ask questions about your recordings directly, with multi-turn dialogue and source citations |
+| **AI Agent Q&A** | PydanticAI agent with tool calling — auto-searches, multi-turn dialogue, source citations, deep think mode |
 | **Dual Transcript Versions** | Raw ASR output alongside an LLM-polished fluent version, switchable with one tap |
 
 ## Key Innovations
@@ -42,21 +42,29 @@ Upload a recording and VoiceKB handles the rest automatically:
 - **Cross-recording Voice Fingerprint Linking** — Speaker identity is tracked not just within a single recording, but across your entire library. Label a speaker once, and they are recognized automatically in every recording.
 - **Three-tier Prompt System** — Platform default → category-level customization → per-recording override. Every layer of summarization behavior is adjustable.
 - **Summarization + Polishing in Parallel** — `asyncio.gather` runs LLM summarization and text polishing concurrently, cutting processing time in half.
-- **Fully Local Deployment** — ASR, voice fingerprinting, vector search, and LLM all run on your own server. Your recordings never leave your machine.
+- **Pluggable AI Backend** — All AI services (ASR + LLM) communicate via OpenAI-compatible APIs. Switch from local to cloud by changing a URL in `.env` — zero code changes
+- **Fully Local Deployment** — ASR, voice fingerprinting, vector search, and LLM can all run on your own server. Your recordings never leave your machine
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────┐
-│  Consumer    uni-app H5 / Mini Program / REST API  │
-├─────────────────────────────────────────────┤
-│  Knowledge   SQLite FTS5 + ChromaDB + LLM RAG      │
-├─────────────────────────────────────────────┤
-│  Processing  faster-whisper + pyannote.audio + wespeaker│
-├─────────────────────────────────────────────┤
-│  Storage     SQLite + Markdown dual-write           │
-└─────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────┐
+│  Consumer     uni-app H5 / Mini Program / REST API   │
+├──────────────────────────────────────────────────────┤
+│  Knowledge    PydanticAI Agent + ChromaDB + FTS5     │
+├──────────────────────────────────────────────────────┤
+│  Processing   ASR (HTTP API) + resemblyzer + clustering│
+├──────────────────────────────────────────────────────┤
+│  Storage      SQLite + Markdown dual-write           │
+└──────────────┬───────────────────┬───────────────────┘
+               │ OpenAI-compatible │
+    ┌──────────┴──┐     ┌──────────┴──────────┐
+    │ ASR Service │     │    LLM Service       │
+    │ (local/cloud)│     │  (local/cloud)       │
+    └─────────────┘     └─────────────────────┘
 ```
+
+> VoiceKB itself has **zero AI model dependencies**. All intelligence comes through standard HTTP APIs — swap backends without changing code.
 
 ## Quick Start
 
@@ -106,13 +114,13 @@ All computation runs locally; zero data egress. Requires an NVIDIA GPU (4 GB+ VR
 
 ```bash
 # .env
-VOICEKB_WHISPER_DEVICE=cuda
+VOICEKB_ASR_BASE_URL=http://localhost:8000/v1
+VOICEKB_ASR_MODEL=medium
 VOICEKB_LLM_BASE_URL=http://localhost:18090/v1
-VOICEKB_LLM_MODEL=Qwen/Qwen3-8B
-VOICEKB_LLM_API_KEY=not-needed
+VOICEKB_LLM_MODEL=Qwen3.5-35B-A3B
 ```
 
-For local LLM, we recommend deploying Qwen3-8B via [vLLM](https://github.com/vllm-project/vllm) or [Ollama](https://ollama.ai).
+For local ASR, we recommend [whisper-asr-webservice](https://github.com/ahmetoner/whisper-asr-webservice) (Docker). For local LLM, we recommend [llama.cpp](https://github.com/ggml-org/llama.cpp) or [Ollama](https://ollama.ai).
 
 ### Mode B: Without GPU — CPU + Cloud LLM
 
@@ -120,7 +128,9 @@ ASR and speaker diarization run on CPU (slower but functional); LLM calls go to 
 
 ```bash
 # .env
-VOICEKB_WHISPER_DEVICE=cpu
+VOICEKB_ASR_BASE_URL=https://api.openai.com/v1
+VOICEKB_ASR_MODEL=whisper-1
+VOICEKB_ASR_API_KEY=sk-your-api-key
 VOICEKB_LLM_BASE_URL=https://api.deepseek.com/v1   # or Qwen, OpenAI, etc.
 VOICEKB_LLM_MODEL=deepseek-chat
 VOICEKB_LLM_API_KEY=sk-your-api-key
@@ -142,13 +152,13 @@ Configure via `.env` file or environment variables (prefix `VOICEKB_`):
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `WHISPER_MODEL` | `small` | Whisper model size (`small` / `medium` / `large-v3`) |
-| `WHISPER_DEVICE` | `cuda` | Compute device (`cuda` / `cpu`) |
-| `LLM_BACKEND` | `openai_compatible` | LLM backend (`openai_compatible` / `none`) |
-| `LLM_BASE_URL` | `http://localhost:8000/v1` | LLM API endpoint |
-| `LLM_MODEL` | `Qwen/Qwen3-8B` | Model name |
-| `LLM_API_KEY` | `not-needed` | API key (not required for local deployment) |
-| `PORT` | `8080` | Service port |
+| `ASR_BASE_URL` | `http://localhost:8000/v1` | Whisper-compatible API endpoint |
+| `ASR_MODEL` | `medium` | Model name (`medium` / `large-v3` / `whisper-1`) |
+| `ASR_API_KEY` | `not-needed` | API key (for cloud ASR) |
+| `LLM_BASE_URL` | `http://localhost:18090/v1` | Chat completions API endpoint |
+| `LLM_MODEL` | `Qwen3.5-35B-A3B` | Model name |
+| `LLM_API_KEY` | `not-needed` | API key (for cloud LLM) |
+| `PORT` | `18089` | Service port |
 
 ## Tech Stack
 
@@ -156,10 +166,11 @@ Configure via `.env` file or environment variables (prefix `VOICEKB_`):
 |-------|------------|
 | Frontend | uni-app (Vue 3) — compiles to both H5 and WeChat Mini Program |
 | Backend | FastAPI + SQLite + ChromaDB |
-| ASR | faster-whisper (CTranslate2 optimized) |
-| Speaker | pyannote.audio 3.1 (neural segmentation + wespeaker embeddings) |
-| Vector Search | ChromaDB + bge-small-zh-v1.5 |
-| LLM | Pluggable — local Qwen3-8B or any OpenAI-compatible API |
+| AI Agent | PydanticAI — tool calling, multi-turn reasoning |
+| ASR | Any OpenAI Whisper-compatible API (local or cloud) |
+| Speaker | resemblyzer (d-vector) + spectral clustering |
+| Vector Search | ChromaDB + bge-base-zh-v1.5 |
+| LLM | Any OpenAI Chat-compatible API (local or cloud) |
 
 ## License
 
