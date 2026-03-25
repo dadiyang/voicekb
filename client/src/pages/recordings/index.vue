@@ -42,6 +42,11 @@
     <!-- 以下内容仅在非搜索状态显示 -->
     <template v-if="!searchQuery">
 
+    <!-- 上传中顶部吸顶提示 -->
+    <view v-if="uploadingFile" class="upload-sticky-bar">
+      <text>正在上传 {{ uploadPercent }}% — 请勿刷新或离开</text>
+    </view>
+
     <!-- 上传中卡片（非阻塞） -->
     <view v-if="uploadingFile" class="card rec-card uploading-card">
       <view class="rec-header">
@@ -161,9 +166,11 @@ const searchQuery = ref('')
 const searchResults = ref(null)
 const searching = ref(false)
 
-// 上传状态（非阻塞，显示为卡片）
-const uploadingFile = ref('')
-const uploadPercent = ref(0)
+// 上传状态 — 用全局变量，导航到详情页再返回时不丢失
+// （uni-app tabBar 页面不会销毁，但 navigateTo 的页面栈恢复时需要同步）
+const _g = (typeof getApp === 'function' && getApp()?.globalData) || {}
+const uploadingFile = ref(_g._uploadingFile || '')
+const uploadPercent = ref(_g._uploadPercent || 0)
 
 // 处理中录音的进度（按 recording_id 存储）
 const progressMap = ref({}) // { recId: { step, percent } }
@@ -296,8 +303,8 @@ function onBeforeUnload(e) {
 
 // #ifdef H5
 function doUploadH5(file) {
-  uploadingFile.value = file.name
-  uploadPercent.value = 0
+  uploadingFile.value = file.name; _g._uploadingFile = file.name
+  uploadPercent.value = 0; _g._uploadPercent = 0
   window.addEventListener('beforeunload', onBeforeUnload)
 
   const fd = new FormData()
@@ -309,16 +316,18 @@ function doUploadH5(file) {
   xhr.upload.onprogress = (e) => {
     if (e.lengthComputable) {
       uploadPercent.value = Math.round((e.loaded / e.total) * 100)
+      _g._uploadPercent = uploadPercent.value
     }
   }
 
   xhr.onload = () => {
     window.removeEventListener('beforeunload', onBeforeUnload)
-    uploadingFile.value = ''
+    uploadingFile.value = ''; _g._uploadingFile = ''
+    uploadPercent.value = 0; _g._uploadPercent = 0
     if (xhr.status === 200) {
       const data = JSON.parse(xhr.responseText)
       uni.showToast({ title: '上传成功，后台处理中', icon: 'success' })
-      loadRecordings() // 刷新列表，processing 卡片会自动出现
+      loadRecordings()
     } else {
       uni.showToast({ title: '上传失败', icon: 'none' })
     }
@@ -326,7 +335,8 @@ function doUploadH5(file) {
 
   xhr.onerror = () => {
     window.removeEventListener('beforeunload', onBeforeUnload)
-    uploadingFile.value = ''
+    uploadingFile.value = ''; _g._uploadingFile = ''
+    uploadPercent.value = 0; _g._uploadPercent = 0
     uni.showToast({ title: '上传失败', icon: 'none' })
   }
 
@@ -543,6 +553,12 @@ onUnmounted(cleanupPollers)
 .progress-bar-bg { width: 100%; height: 8rpx; background: #E5E7EB; border-radius: 4rpx; overflow: hidden; }
 .progress-bar-fill { height: 100%; background: linear-gradient(90deg, $color-primary, #818CF8); border-radius: 4rpx; transition: width 0.5s ease; }
 
+.upload-sticky-bar {
+  position: sticky; top: 0; z-index: 50;
+  background: $color-primary; color: #fff;
+  font-size: 24rpx; text-align: center;
+  padding: 10rpx 0;
+}
 .uploading-card {
   border-left-color: #818CF8 !important;
   animation: pulse-border 1.5s ease-in-out infinite;

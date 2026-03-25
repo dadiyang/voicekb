@@ -66,6 +66,28 @@ async def lifespan(app: FastAPI):
     _rag = RAGEngine(_search, _llm)
     _agent = create_agent(settings, search=_search)
 
+    # 启动时自动恢复 stuck 的 processing 录音（上次重启导致 async task 丢失）
+    stuck = _store._conn.execute(
+        "SELECT id FROM recordings WHERE status = 'processing'"
+    ).fetchall()
+    if stuck:
+        logger.warning("发现 %d 条 stuck processing 录音，自动恢复处理", len(stuck))
+        for row in stuck:
+            rec_id = row[0]
+            rec = _store.get_recording(rec_id)
+            if rec:
+                audio_path = settings.data_dir / "audio" / rec.filename
+                if audio_path.exists():
+                    asyncio.create_task(_process_recording(rec_id, audio_path))
+                    logger.info("自动恢复处理: %s (%s)", rec_id, rec.filename)
+                else:
+                    _store._conn.execute(
+                        "UPDATE recordings SET status = 'failed', error = '音频文件丢失' WHERE id = ?",
+                        (rec_id,),
+                    )
+                    _store._conn.commit()
+                    logger.error("音频文件丢失，标记失败: %s", rec_id)
+
     logger.info("VoiceKB 启动完成, 监听 %s:%d", settings.host, settings.port)
     yield
 
@@ -161,18 +183,31 @@ async def upload_audio(file: UploadFile = File(...)):
     """上传音频文件并启动后台处理。"""
     _ensure_ready()
 
-    # 读取文件内容并计算 MD5（用于文件命名，脱敏+去重）
-    content = await file.read()
-    file_hash = hashlib.md5(content).hexdigest()
-    suffix = Path(file.filename or "audio.wav").suffix
-    recording_id = f"rec_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{file_hash[:8]}"
+    import tempfile, shutil
 
-    # 保存文件（recording_id 已包含 hash 前缀，不重复附加）
+    # 整个文件保存放到线程池，不阻塞事件循环（FastAPI UploadFile.read 大文件时是同步 IO）
+    suffix = Path(file.filename or "audio.wav").suffix
+    spooled = file.file  # 底层 SpooledTemporaryFile
+
+    def _save_upload():
+        md5 = hashlib.md5()
+        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix, dir=str(settings.upload_dir))
+        while True:
+            chunk = spooled.read(1024 * 1024)
+            if not chunk:
+                break
+            md5.update(chunk)
+            tmp.write(chunk)
+        tmp.close()
+        return tmp.name, md5.hexdigest()
+
+    loop = asyncio.get_event_loop()
+    tmp_path, file_hash = await loop.run_in_executor(None, _save_upload)
+
+    recording_id = f"rec_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{file_hash[:8]}"
     upload_path = settings.upload_dir / f"{recording_id}{suffix}"
     upload_path.parent.mkdir(parents=True, exist_ok=True)
-
-    with open(upload_path, "wb") as f:
-        f.write(content)
+    await loop.run_in_executor(None, shutil.move, tmp_path, str(upload_path))
 
     # 创建 pending 记录
     from voicekb.models import Recording
@@ -297,7 +332,7 @@ async def get_recording(recording_id: str):
 
 @app.get("/api/recordings/{recording_id}/status")
 async def get_recording_status(recording_id: str):
-    progress = _progress.get(recording_id, {"step": "未知", "percent": 0})
+    progress = _progress.get(recording_id, {"step": "等待处理...", "percent": 0})
     return progress
 
 

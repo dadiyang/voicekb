@@ -18,10 +18,11 @@ class Settings(BaseSettings):
     speaker_db_path: Path = Path.home() / ".voicekb" / "speakers.db"
     chroma_dir: Path = Path.home() / ".voicekb" / "chroma"
 
-    # ── ASR ────────────────────────────────────────────────────────────────
-    whisper_model: str = "small"
-    whisper_device: str = "cuda"
-    whisper_compute_type: str = "float16"
+    # ── ASR（OpenAI Whisper API 兼容，本地 faster-whisper-server 或云端）────
+    asr_base_url: str = "http://localhost:8000/v1"  # 本地 faster-whisper-server
+    asr_model: str = "medium"  # 本地用 medium/large-v3，云端用 whisper-1
+    asr_api_key: str = "not-needed"
+    asr_language: str = "zh"
 
     # ── 声纹 ──────────────────────────────────────────────────────────────
     speaker_similarity_threshold: float = 0.85
@@ -30,7 +31,7 @@ class Settings(BaseSettings):
     # ── LLM ────────────────────────────────────────────────────────────────
     llm_backend: str = "openai_compatible"  # "openai_compatible" | "none"
     llm_base_url: str = "http://localhost:8000/v1"
-    llm_model: str = "Qwen/Qwen3-8B"
+    llm_model: str = "Qwen3.5-35B-A3B"
     llm_api_key: str = "not-needed"
 
     # ── 搜索 ──────────────────────────────────────────────────────────────

@@ -28,13 +28,14 @@ class ProcessingPipeline:
         self._diarizer: Diarizer | None = None
         self._speaker_db: SpeakerDB | None = None
 
-    def _ensure_models(self) -> None:
-        """懒加载模型，避免启动时占用全部显存。"""
+    def _ensure_services(self) -> None:
+        """懒初始化服务客户端。"""
         if self._asr is None:
             self._asr = ASREngine(
-                model_size=self._settings.whisper_model,
-                device=self._settings.whisper_device,
-                compute_type=self._settings.whisper_compute_type,
+                base_url=self._settings.asr_base_url,
+                model=self._settings.asr_model,
+                api_key=self._settings.asr_api_key,
+                language=self._settings.asr_language,
             )
         if self._diarizer is None:
             self._diarizer = Diarizer()
@@ -58,7 +59,7 @@ class ProcessingPipeline:
         4. 说话人匹配/注册 (80-95%)
         5. 完成 (95-100%)
         """
-        self._ensure_models()
+        self._ensure_services()
         assert self._asr is not None
         assert self._diarizer is not None
         assert self._speaker_db is not None
